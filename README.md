@@ -243,12 +243,11 @@ gcc your_program.c -o your_program \
 ```java
 import com.tencent.tglog.*;
 
-// 创建配置
-TglogConfig config = TglogConfig.createTcp("127.0.0.1", 20001)
+// 示例 1: 标准模式（带回调）
+TglogConfig config = new TglogConfig(TglogConfig.NETWORK_TCP, "dev.tglog.com", 20001)
     .setWorkerNum(8)
     .setMaxConnLifetime(300);
 
-// 创建客户端
 try (TglogClient client = new TglogClient(config)) {
     // 发送日志
     client.sendAsync("mylog|field1|field2|field3\n",
@@ -259,43 +258,66 @@ try (TglogClient client = new TglogClient(config)) {
             public void onError(String payload, int code, String msg) {
                 System.err.println("发送失败: " + msg);
             }
-        }).get();
+        });
 
     // 获取统计信息
     TglogStats stats = client.getStats();
     System.out.println("成功率: " + stats.getSuccessRate());
+}
+
+// 示例 2: DirectByteBuffer 高性能模式（推荐生产环境）
+try (TglogClient client = new TglogClient(TglogConfig.NETWORK_TCP, "dev.tglog.com", 20001)) {
+    ByteBuffer buffer = TglogClient.createDirectBuffer("mylog|field1|field2\n");
+    int messageLength = "mylog|field1|field2\n".getBytes("UTF-8").length;
+
+    // 高性能发送（可达 ~1,000,000 msg/s）
+    for (int i = 0; i < 1000000; i++) {
+        buffer.position(0);  // 重置位置以复用 buffer
+        client.sendDirect(buffer, messageLength);
+    }
 }
 ```
 
 ### Python使用示例
 
 ```python
-from tglog_client import TglogClient, TglogConfig, TGLOG_NETWORK_TCP
+# 示例 1: ctypes 版本（纯 Python，无需编译，适合快速开发）
+from tglog_client import TglogClientPy
 
-# 创建配置
-config = TglogConfig(
-    network=TGLOG_NETWORK_TCP,
-    host="127.0.0.1",
-    port=20001
-)
+client = TglogClientPy(protocol="tcp", host="dev.tglog.com", port=20001, workers=8)
 
-# 创建客户端
-client = TglogClient(config)
-
-# 发送日志
 def callback(payload, err_code, err_msg):
     if err_code == 0:
         print(f"成功: {payload}")
     else:
         print(f"错误: {err_msg}")
 
-client.send("mylog|field1|field2\n", callback)
+client.send("mylog|field1|field2\n", callback=callback)
+client.destroy()
+
+# 示例 2: C Extension 版本（高性能，需要编译）
+import tglog_ext
+
+client = tglog_ext.TglogClient("tcp", "dev.tglog.com", 20001)
+client.send("mylog|field1|field2\n", use_callback=True)
+
+# 示例 3: Cython 版本（最高性能，推荐生产环境）
+from tglog_cython import TglogClient
+
+client = TglogClient(protocol="tcp", host="dev.tglog.com", port=20001, workers=4)
+
+def callback(payload, err_code, err_msg):
+    if err_code == 0:
+        print(f"成功: {payload}")
+
+# 高性能发送（可达 ~1,283,890 msg/s）
+for i in range(10000):
+    client.send(f"mylog|data|{i}\n", callback)
 
 # 获取统计信息
 metrics = client.get_metrics()
 print(f"统计信息: {metrics}")
 
-# 清理
 client.destroy()
 ```
 
@@ -303,24 +325,56 @@ client.destroy()
 
 ### tglog_conf 配置项
 
+> **版本差异说明**:
+> - 多线程版本（tglog）有 `worker_num` 配置，单线程版本（tglog-st）没有
+> - 单线程版本（tglog-st）有 `max_update_us` 和 `max_messages_per_update` 配置，多线程版本（tglog）没有
+> - 内存池配置的默认值不同：多线程版本是单线程版本的 10 倍
+> - 多线程版本的回调函数（`can_log`、`write_log`）必须是线程安全的
+
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `network` | enum | UDP | 网络协议 (TCP/UDP) |
+| **基础配置** | | | |
+| `network` | enum | TCP | 网络协议 (TCP/UDP) |
 | `host` | string | - | 服务器地址 (IP或域名) |
 | `port` | int | - | 服务器端口 |
-| `worker_num` | int | 8 | Worker线程数量 (仅多线程版本) |
+| **连接配置** | | | |
 | `update_interval` | int | 60s | DNS更新间隔 |
 | `conn_timeout` | int | 3000ms | 连接超时时间 (仅TCP) |
-| `write_high_watermark` | int | 32MB | 写缓冲区高水位 |
-| `socket_send_buffer_size` | int | 16MB | socket发送缓冲区大小 |
 | `max_conn_lifetime` | int | 300s | 连接生命周期 |
+| **缓冲区配置** | | | |
+| `write_high_watermark` | int | 32MB | 写缓冲区高水位 |
+| `socket_send_buffer_size` | int | 64MB | socket发送缓冲区大小 |
+| `socket_recv_buffer_size` | int | 16KB | socket接收缓冲区大小 |
+| **批处理配置** | | | |
 | `batching_max_publish_delay` | int | 10ms | 批次最大延迟 |
-| `batching_max_messages` | int | 100 | 批次最大消息数 |
+| `batching_max_messages` | int | 50 | 批次最大消息数 |
 | `batching_max_size` | int | 32KB | 批次最大大小 |
-| `max_pending_messages` | int | 409600/1000000 | 队列最大容量 |
-| `send_timeout` | int | 30000ms | 消息最长停留时间 |
-| `max_retries` | int | 3 | 最大重传次数 |
-| `max_update_us` | int | 300us | 单次update最大时间 (仅单线程版本) |
+| **队列和超时配置** | | | |
+| `max_pending_messages` | int | 409600 (多线程)<br>1000000 (单线程) | 每个worker最大待处理消息数 |
+| `send_timeout` | int | 30000ms | 发送超时时间 |
+| `max_retries` | int | 3 | 最大重试次数 |
+| `stop_timeout` | int | 3000ms | 停止超时时间 |
+| **线程配置** | | | |
+| `worker_num` | int | 8 | Worker线程数量 (仅多线程版本) |
+| **单线程版本特有配置** | | | |
+| `max_update_us` | int | 200us | 单次update调用的最大时间 (仅单线程版本) |
+| `max_messages_per_update` | int | 1000 | 每次update处理的最大消息数 (仅单线程版本) |
+| **内存池配置** | | | |
+| `message_pool_cap` | size_t | 1000000 (多线程)<br>100000 (单线程) | 消息池容量 |
+| `payload_pool_256b_cap` | size_t | 20000 (多线程)<br>2000 (单线程) | 256字节负载池容量 |
+| `payload_pool_512b_cap` | size_t | 20000 (多线程)<br>2000 (单线程) | 512字节负载池容量 |
+| `payload_pool_1kb_cap` | size_t | 20000 (多线程)<br>2000 (单线程) | 1KB负载池容量 |
+| `payload_pool_2kb_cap` | size_t | 10000 (多线程)<br>1000 (单线程) | 2KB负载池容量 |
+| `payload_pool_4kb_cap` | size_t | 10000 (多线程)<br>1000 (单线程) | 4KB负载池容量 |
+| `payload_pool_8kb_cap` | size_t | 10000 (多线程)<br>1000 (单线程) | 8KB负载池容量 |
+| `payload_pool_16kb_cap` | size_t | 5000 (多线程)<br>500 (单线程) | 16KB负载池容量 |
+| `payload_pool_32kb_cap` | size_t | 5000 (多线程)<br>500 (单线程) | 32KB负载池容量 |
+| `payload_pool_48kb_cap` | size_t | 1000 (多线程)<br>100 (单线程) | 48KB负载池容量 |
+| `payload_pool_64kb_cap` | size_t | 1000 (多线程)<br>100 (单线程) | 64KB负载池容量 |
+| **调试日志配置** | | | |
+| `can_log` | func | tglog_can_log_info | 日志过滤函数 |
+| `write_log` | func | tglog_std_write_log | 日志写入函数 |
+| `user_data` | void* | NULL | 用户数据 |
 
 ### 高级配置示例
 
@@ -364,19 +418,50 @@ if (len > 0) {
 
 ### 统计指标说明
 
-#### Counter类型 (累计计数)
-- `request_msg_count`: 应用请求发送的消息数
-- `enqueued_msg_count`: 成功入队的消息数
-- `succeeded_msg_count`: 发送成功的消息数
-- `failed_msg_count`: 发送失败的消息数
-- `timeout_msg_count`: 超时的消息数
-- `retry_msg_count`: 重传次数
-- `dropped_msg_count`: 丢弃的消息数
+#### Counter 类型（累计计数）
 
-#### Gauge类型 (瞬时状态)
+**消息统计**
+- `request_msg_count`: 应用请求发送的消息总数
+- `enqueued_msg_count`: 成功入队的消息数
+- `dequeued_msg_count`: 成功出队的消息数
+- `succeeded_msg_count`: 成功发送的消息数
+- `failed_msg_count`: 失败的消息数（包括超时和丢弃）
+- `timeout_msg_count`: 超时的消息数
+- `retry_msg_count`: 重试次数（每次重试都计数）
+- `dropped_msg_count`: 丢弃的消息数（请求但未入队）
+
+**错误统计**
+- `eagain_err_count`: EAGAIN 错误次数
+
+**连接统计**
+- `opened_conn_count`: 打开的连接数
+- `closed_conn_count`: 关闭的连接数
+- `error_conn_count`: 错误的连接数
+
+**端点统计**
+- `add_endpoint_count`: 添加端点的次数
+- `remove_endpoint_count`: 移除端点的次数
+
+#### Gauge 类型（瞬时状态）
 - `endpoint_count`: 当前端点数量
-- `msg_queue_size`: 当前队列大小
-- `msg_queue_capacity`: 队列容量
+- `msg_queue_size`: 当前消息队列大小
+- `msg_queue_capacity`: 消息队列容量
+
+#### 单线程版本特有指标（Update 性能监控）
+
+**Update 调用统计**
+- `total_update_count`: 总的 `tglog_client_update()` 调用次数
+- `timeout_update_count`: 超时的 update 调用次数
+- `idle_update_count`: 空闲的 update 调用次数（没有分发任何消息）
+
+**Update 性能指标**
+- `max_update_time_us`: 单次 update 调用的最大耗时（微秒）
+- `limit_update_time_us`: 配置中 update 调用的时间限制（微秒）
+- `max_event_dispatch_time_us`: 单次 update 中事件分发的最大耗时（微秒）
+- `max_msg_dispatch_time_us`: 单次 update 中消息分发的最大耗时（微秒）
+- `max_msg_dispatch_count`: 单次 update 中分发的最大消息数
+
+> **注意**: 单线程版本需要应用主动调用 `tglog_client_update()` 来驱动事件循环，这些指标用于监控 update 调用的性能表现。
 
 ## 🏗️ 架构设计
 
@@ -506,7 +591,14 @@ TGLog提供完整的Java JNI绑定，支持高性能日志发送。
 - 四种性能模式（标准、性能、DirectByteBuffer无回调、DirectByteBuffer带回调）
 - 完整的配置和统计API
 
-**性能**: DirectByteBuffer模式可达到C版本56%的性能（100万条日志约1-2秒）
+**性能模式对比** (发送 1,000,000 条日志):
+
+| 模式 | 发送时间 | 吞吐量 | 回调支持 | 适用场景 |
+|------|---------|--------|---------|---------|
+| DirectByteBuffer无回调 | ~1.0秒 | ~1,000,000 msg/s | ✗ | 极限性能 |
+| DirectByteBuffer带回调 | ~1.5-2.0秒 | ~500,000-666,667 msg/s | ✓ | 生产推荐 |
+| 性能模式 | ~3.0秒 | ~333,333 msg/s | ✓ | 生产环境 |
+| 标准模式 | ~3.5秒 | ~285,714 msg/s | ✓ | 开发调试 |
 
 **文档**: 详见 [bindings/java/README.md](bindings/java/README.md)
 
@@ -514,15 +606,19 @@ TGLog提供完整的Java JNI绑定，支持高性能日志发送。
 
 TGLog提供三种Python绑定实现：
 
-1. **ctypes绑定**: 纯Python实现，无需编译
-2. **C扩展**: 原生Python C API扩展，性能更好
-3. **Cython扩展**: 高性能Cython扩展，接近原生性能
+1. **Cython扩展** ⭐⭐⭐⭐⭐: 最高性能，**超过 C 基准 5%**，推荐生产环境
+2. **C扩展** ⭐⭐⭐⭐: 高性能，达到 C 基准的 78%，适合生产环境
+3. **ctypes绑定** ❌: 纯Python实现，无需编译，仅 3% 性能，不推荐生产使用
 
-**性能对比** (100万条日志):
-- C原生: 0.6秒 (基准)
-- Cython: 1.1秒 (56%)
-- C扩展: 1.5秒 (42%)
-- ctypes: 36秒 (2.8%)
+**性能对比** (发送 1,000,000 条日志):
+
+| 实现方式 | 发送时间 | 吞吐量 | 相对性能 | 推荐度 |
+|---------|---------|--------|---------|--------|
+| **Python Cython** 🏆 | 776.7ms | **1,283,890 msg/s** | **105%** | ⭐⭐⭐⭐⭐ |
+| **C 基准** | 813.6ms | 1,225,684 msg/s | 100% | ⭐⭐⭐⭐⭐ |
+| **Python C Extension** | 1,049.7ms | 950,718 msg/s | 78% | ⭐⭐⭐⭐ |
+| **Java JNI** | 1,839.0ms | 543,883 msg/s | 44% | ⭐⭐⭐ |
+| **Python ctypes** | 25,887.2ms | 38,615 msg/s | 3% | ❌ |
 
 **文档**: 详见 [bindings/python/README.md](bindings/python/README.md)
 
@@ -692,15 +788,16 @@ sdk-c/
 │   └── DESIGN.md          # 设计文档
 │
 ├── bindings/              # 语言绑定
+│   ├── ALL_BINDINGS_COMPARISON.md  # 所有绑定对比
 │   ├── java/              # Java JNI绑定
 │   │   ├── TglogClient.java
 │   │   ├── TglogJNI.c
-│   │   └── README_JAVA.md
+│   │   └── README.md
 │   └── python/            # Python绑定
 │       ├── tglog_client.py      # ctypes绑定
 │       ├── tglog_ext.c          # C扩展
 │       ├── tglog_cython.pyx     # Cython扩展
-│       └── README_PYTHON.md
+│       └── README.md
 │
 ├── test/                  # 多线程版本测试程序
 ├── test-st/               # 单线程版本测试程序
@@ -751,30 +848,42 @@ sdk-c/
 - **文档**:
   - 多线程版本: [tglog/README.md](tglog/README.md) 和 [tglog/DESIGN.md](tglog/DESIGN.md)
   - 单线程版本: [tglog-st/README.md](tglog-st/README.md) 和 [tglog-st/DESIGN.md](tglog-st/DESIGN.md)
-  - Java绑定: [bindings/java/README_JAVA.md](bindings/java/README.md)
-  - Python绑定: [bindings/python/README_PYTHON.md](bindings/python/README_PYTHON.md)
+  - Java绑定: [bindings/java/README.md](bindings/java/README.md)
+  - Python绑定: [bindings/python/README.md](bindings/python/README.md)
+  - 所有绑定对比: [bindings/ALL_BINDINGS_COMPARISON.md](bindings/ALL_BINDINGS_COMPARISON.md)
+  - CMake构建指南: [CMAKE_BUILD_GUIDE.md](CMAKE_BUILD_GUIDE.md)
+  - Git Submodules指南: [GIT_SUBMODULES_FAQ.md](GIT_SUBMODULES_FAQ.md)
 - **示例**: 参考 `test/`、`test-st/` 和 `test-tapp/` 目录下的示例代码
 - **问题反馈**: 通过GitHub Issues提交问题
 - **技术讨论**: 欢迎参与代码Review和技术讨论
 
 ## 🎯 性能基准
 
-### C语言性能 (100万条日志)
+### C语言性能 (发送 1,000,000 条日志)
 
-| 版本 | 吞吐量 | 延迟 | 适用场景 |
-|------|--------|------|---------|
-| 多线程 (8 workers) | ~100万条/秒 | <1ms | 高吞吐量服务器 |
-| 单线程 | ~10-20万条/秒 | <10ms | 游戏服务器、单线程应用 |
+| 版本 | 发送时间 | 吞吐量 | 延迟 | 适用场景 |
+|------|---------|--------|------|---------|
+| 多线程 (8 workers) | ~813ms | ~1,225,684 msg/s | <1ms | 高吞吐量服务器 |
+| 单线程 | ~ 685ms | ~1,459,854 msg/s | <1ms | 游戏服务器、单线程应用 |
 
-### 语言绑定性能 (100万条日志)
+### 语言绑定性能 (发送 1,000,000 条日志)
 
-| 语言/实现 | 发送时间 | 吞吐量 | 相对性能 |
-|----------|---------|--------|---------|
-| C原生 | 0.6秒 | 1,618,123条/秒 | 100% |
-| Java DirectByteBuffer | 1.0-2.0秒 | 500,000-1,000,000条/秒 | 50-100% |
-| Python Cython | 1.1秒 | 904,888条/秒 | 56% |
-| Python C扩展 | 1.5秒 | 682,810条/秒 | 42% |
-| Python ctypes | 36秒 | 27,859条/秒 | 2.8% |
+| 语言/实现 | 发送时间 | 吞吐量 | 相对性能 | 推荐度 |
+|----------|---------|--------|---------|--------|
+| **Python Cython** 🏆 | 776.7ms | **1,283,890 msg/s** | **105%** | ⭐⭐⭐⭐⭐ |
+| **C 基准** | 813.6ms | 1,225,684 msg/s | 100% | ⭐⭐⭐⭐⭐ |
+| **Python C Extension** | 1,049.7ms | 950,718 msg/s | 78% | ⭐⭐⭐⭐ |
+| **Java DirectByteBuffer (无回调)** | ~1,000ms | ~1,000,000 msg/s | 82% | ⭐⭐⭐⭐ |
+| **Java DirectByteBuffer (带回调)** | ~1,500-2,000ms | ~500,000-666,667 msg/s | 41-54% | ⭐⭐⭐⭐ |
+| **Java JNI (标准)** | 1,839ms | 543,883 msg/s | 44% | ⭐⭐⭐ |
+| **Java 性能模式** | ~3,000ms | ~333,333 msg/s | 27% | ⭐⭐⭐ |
+| **Python ctypes** | 25,887ms | 38,615 msg/s | 3% | ❌ |
+
+**关键发现**:
+- Python Cython 性能最优，甚至超过 C 基准 5%
+- Java DirectByteBuffer 无回调模式可达 100万 msg/s
+- Python C Extension 达到 C 基准的 78%，适合生产环境
+- Python ctypes 性能较差，不推荐生产使用
 
 ---
 
