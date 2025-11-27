@@ -1,0 +1,10 @@
+prefix=@CMAKE_CURRENT_SOURCE_DIR@/dist
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: TGLog
+Description: High-performance logging library
+Version: 1.0.0
+Libs: -L${libdir} -ltglog -L${prefix}/thirdparty/event/lib -levent -L${prefix}/thirdparty/ck/lib -lck -lpthread
+Cflags: -I${includedir} -I${prefix}/thirdparty/event/include -I${prefix}/thirdparty/ck/include

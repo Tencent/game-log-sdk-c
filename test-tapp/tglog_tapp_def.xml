@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="GBK" standalone="yes" ?>
+
+<metalib name="TestTappLib" tagsetversion="1" version="1">
+
+    <struct name="TestTappCfg" version="1" desc="测试应用配置">
+        <entry name="Name" type="string" defaultvalue="test-tapp" size="256" desc=""/>
+        <entry name="Network" type="string" defaultvalue="tcp" size="32" desc="tcp/udp"/>
+        <entry name="Server" type="string" defaultvalue="dev.tglog.com" size="256" desc="tglog server"/>
+        <entry name="Port" type="int" defaultvalue="20001" desc="tglog server port"/>
+        <entry name="Count" type="int" defaultvalue="10000000" desc="total log count to send"/>
+        <entry name="Batch" type="int" defaultvalue="500" desc="log count to send every proc call"/>
+        <entry name="UseTLog" type="int" defaultvalue="0" desc="use TLog API to send logs"/>
+    </struct>
+
+</metalib>

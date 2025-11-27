@@ -1,0 +1,18 @@
+TSF4G(Tencent Software Framework for Game) Base README
+
+运行demo/example程序
+    1) 确定mysql是否安装，如果没有请先安装mysql
+        
+	2) 执行configure脚本，例如：
+      ./configure CPPFLAGS="-I<mysql-inlude-dir>" LDFLAGS="-L<mysql-lib-dir> -Llib -lgcov -ftest-coverage -fprofile-arcs -lm" --prefix="<install-dir>"
+        
+		mysql-inlude-dir 通过  mysql_config --include 得到
+		mysql-lib-dir 通过 mysql_config --libs 得到，只需要-L部分就可以了，比如-L/usr/lib64/mysql
+        "-Llib" 解决'TSF4G depends on expat/scew library, but unable to find it'的问题
+        --prefix 指定安装目录，缺省安装在/usr/local/tsf4g_release目录
+		-lgcov -ftest-coverage -fprofile-arcs: 如果是链接的是tbase的debug版本，则需要这些 统计单元测试覆盖率的库
+		-lm: 数学库
+
+	 	configure详细的使用说明请参考:   ./configure --help
+        
+	3) 执行make

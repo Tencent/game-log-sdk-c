@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="GBK" standalone="yes" ?>
+
+<!--TestTappCfg: 测试应用配置-->
+<TestTappCfg __version="1">
+
+    <!--Name: -->
+    <!--DEFAULT VALUE: 'test-tapp'-->
+    <Name>test-tapp</Name>
+
+    <!--Network: tcp/udp-->
+    <!--DEFAULT VALUE: 'tcp'-->
+    <Network>udp</Network>
+
+    <!--Server: tglog server-->
+    <!--DEFAULT VALUE: 'dev.tglog.com'-->
+    <Server>dev.tglog.com</Server>
+
+    <!--Port: tglog server port-->
+    <!--DEFAULT VALUE: '20001'-->
+    <Port>20001 </Port>
+
+    <!--Count: total log count to send-->
+    <!--DEFAULT VALUE: '10000000'-->
+    <Count>10000000 </Count>
+
+    <!--Batch: log count to send every proc call-->
+    <!--DEFAULT VALUE: '500'-->
+    <Batch>500 </Batch>
+
+    <!--UseTLog: use TLog API to send logs-->
+    <!--DEFAULT VALUE: '0'-->
+    <UseTLog>1 </UseTLog>
+
+</TestTappCfg>

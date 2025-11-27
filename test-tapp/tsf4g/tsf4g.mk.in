@@ -1,0 +1,96 @@
+#Makefile template for tsf4g.mk
+# $Id: tsf4g.mk.in,v 1.1 2009-03-26 10:20:51 jacky Exp $
+#
+# Date:   2008-04-21
+#
+# Copyright (C) 2008 Architechure IRED TENCENT
+#
+# ================================================================
+
+
+VPATH = @srcdir@
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+bindir = @bindir@
+datadir = @datadir@
+includedir = @includedir@
+infodir = @infodir@
+libdir = @libdir@
+libexecdir = @libexecdir@
+localstatedir = @localstatedir@
+mandir = @mandir@
+moduledir = @libexecdir@
+sbindir = @sbindir@
+sharedstatedir = @sharedstatedir@
+
+#----------------------------------------------------
+enabledebug=@tsf4g_enable_debug@
+
+#--------------work directories----------------------
+TSF4G_HOME=@TSF4G_HOME@
+TSF4G_ARCH=@TSF4G_ARCH@
+TSF4G_INC  = $(TSF4G_HOME)/include
+
+TSF4G_SERVICES = $(TSF4G_HOME)/services
+
+TSF4G_LIB  = @TSF4G_LIB_PATH@
+
+TSF4G_TOOLS = $(TSF4G_HOME)/tools
+
+TSF4G_SERVICES = $(TSF4G_HOME)/services
+TSF4G_APPS_INC=$(TSF4G_INC)/apps
+
+#---------------------------------------
+#dirctory for mysql installed
+MYSQL_INSTALL_DIR=@MYSQL_INSTALL_DIR@
+
+CC =@CC@
+RM = /bin/rm -f
+
+
+# -----------include files -----------------------------------
+
+TSF4G_DBMS_INCLUDE = $(mysql_config --include)
+
+CINC  =  -I$(TSF4G_INC)/ ${TSF4G_DBMS_INCLUDE}
+
+
+
+
+#----------------libraris --------------------------
+LDPATH += @LDFLAGS@ -lstdc++ -Llib -lgcov -ftest-coverage -fprofile-arcs -lm -lrt -lanl
+LDPATH += $(mysql_config --libs)
+
+ifeq  ($(TSF4G_ARCH),x86_64)
+	LDPATH  += -L/usr/lib64/ -L/usr/local/lib64
+	TSF4G_DEPS = $(TSF4G_HOME)/deps/lib64
+else
+	LDPATH  += -L/usr/lib/ -L/usr/local/lib
+	TSF4G_DEPS = $(TSF4G_HOME)/deps/lib
+endif
+
+LDPATH += -L$(TSF4G_LIB)/
+
+
+LIBS = -lnsl -lpthread -ldl
+
+
+
+#libraries for XML parse
+TSF4G_XML_LIBS =  -lscew -lexpat
+
+#library for mysqlclient
+TSF4G_DBMS_LIB = -lmysqlclient  -lz -lcrypt -lnsl -lm
+
+#C compiler flags
+SHARED = -shared -z defs
+CFLAGS=@CFLAGS@
+
+CFLAGS += @CPPFLAGS@
+
+CFLAGS+= -Wall -Wextra -pipe -D_NEW_LIC -D_GNU_SOURCE -D_REENTRANT -fPIC
+
+CFLAGS += $(CINC)
+
+
+

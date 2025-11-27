@@ -1,0 +1,19 @@
+TagName: TSF4G_BASE-2.7.37.04bad6d4c_X86_64_Release
+Remote URL: 
+origin	http://git.code.oa.com/tsf4g/tsf4g.git (fetch)
+origin	http://git.code.oa.com/tsf4g/tsf4g.git (push)
+
+Remote Branches: 
+  origin/2.7.37.1
+  origin/HEAD -> origin/master
+  origin/kewenchen
+  origin/lightspeed/lgame
+  origin/master
+  origin/tbusd_mt
+
+Most Recent Commit: 
+commit 04bad6d4ce4118c9a1f729b98d515e95744a25ef
+Author: cowhuang <cowhuang@tencent.com>
+Date:   Thu Apr 2 17:26:38 2020 +0800
+
+    fix: add tdr_error

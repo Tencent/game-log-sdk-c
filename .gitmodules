@@ -1,0 +1,9 @@
+[submodule "event"]
+	path = event
+	url = https://github.com/libevent/libevent.git
+[submodule "ck"]
+	path = ck
+	url = https://github.com/concurrencykit/ck.git
+[submodule "jemalloc"]
+	path = jemalloc
+	url = https://github.com/jemalloc/jemalloc.git
