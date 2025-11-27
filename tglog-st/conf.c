@@ -83,7 +83,7 @@ void tglog_conf_set_default(tglog_conf *conf) {
     conf->payload_pool_64kb_cap = 100;
 
     /* single-threaded specific defaults */
-    conf->max_update_us = 300;
+    conf->max_update_us = 200;
     conf->max_messages_per_update = 1000;
 }
 

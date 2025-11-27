@@ -65,7 +65,7 @@ typedef struct tglog_conf {
     size_t payload_pool_48kb_cap;           /* payload pool 48kb capacity, default: 100 */
     size_t payload_pool_64kb_cap;           /* payload pool 64kb capacity, default: 100 */
     /* single-threaded version specific configs */
-    int max_update_us;                      /* max time in us for a single update call, default: 300us, the real time may exceed this limit */
+    int max_update_us;                      /* max time in us for a single update call, default: 200us, the real time may exceed this limit */
     int max_messages_per_update;            /* max messages to process per update, default: 1000 */
 } tglog_conf;
 
