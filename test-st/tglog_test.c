@@ -144,14 +144,8 @@ int main(int argc, char *argv[]) {
     /* Create configuration with defaults */
     tglog_conf conf = {0};
     tglog_conf_set_default(&conf);
-    conf.max_update_us = 200;
-    conf.max_messages_per_update = 20;
-    conf.batching_max_messages = 20;
-    conf.socket_send_buffer_size = 64 * 1024 * 1024;
     /* Only override connection parameters */
-    strncpy(conf.host, ip, sizeof(conf.host) - 1);
-    conf.port = port;
-    conf.network = protocol;
+    tglog_conf_set_server(&conf,protocol, ip, port);
 
     /* Create client */
     tglog_client *client = tglog_client_create(&conf);

@@ -56,13 +56,7 @@ int main(int argc, char *argv[]) {
     tglog_conf_set_default(&conf);
 
     /* Basic configuration */
-    conf.network = TGLOG_NETWORK_TCP;
-    strncpy(conf.host, "dev.tglog.com", sizeof(conf.host) - 1);
-    conf.port = 20001;
-    conf.batching_max_publish_delay = 10;  /* 10ms batch delay */
-    conf.batching_max_messages = 50;       /* Batch up to 10 messages */
-    conf.max_messages_per_update = 50;    /* Process up to 100 messages per update */
-    conf.max_update_us = 100;            /* 1ms max per update */
+    tglog_conf_set_server(&conf, TGLOG_NETWORK_TCP, "dev.tglog.com", 20001);
 
     printf("=== Simple TGLog Performance Test (Single-Threaded) ===\n");
     printf("Configuration:\n");
