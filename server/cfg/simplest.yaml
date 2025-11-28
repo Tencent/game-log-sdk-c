@@ -1,0 +1,64 @@
+version: 1
+quitWaitTime: 60
+statisticsInterval: 30
+disableStatistics: false
+bytePoolWidth: 8192
+byteBufferPoolSize: 10240
+debugLog:
+  level: debug
+  file:
+    pattern: ../log/tglog_%Y%m%d.log
+    rotationTime: '24h'
+    maxAge: '168h'
+    encoding: console
+
+httpService:
+  adminAddr: ":10001"
+  metricsAddr: ":10002"
+  pprofAddr: ":10003"
+
+dataService:
+  sources:
+    source-udp:
+      type: socket
+      socket:
+        network: tcp
+        addr: ":20001"
+        readBufSize: 4194304
+        receiveBufSize: 67108864
+        framer:
+          type: line
+          lineDelimiter:
+            maxFrameLen: 65536
+            readAsMuchAsPossible: true
+  handlers:
+    handler-tglogv1-udp:
+      type: tglogv1
+      TGLogV1:
+        reportEventNameLabelToMetrics: true
+  sinks:
+    sink-all-logs:
+      sink:
+        type: file
+        file:
+          pattern: ../data/all-%Y%m%d_%H%M.log
+          rotationTime: '1h'
+          maxAge: '168h'
+          encoding: text
+          async: true
+          rotationSize: 1073741824
+          reportEventNameLabelToMetrics: true
+      filters: [ ]
+  sinkGroups:
+    group-default:
+      group:
+        type: default
+        replicating: { }
+      sinks: [ sink-all-logs ]
+  pipelines:
+    pipeline-udp:
+      type: default
+      default:
+        source: source-udp
+        handler: handler-tglogv1-udp
+        sinkGroup: group-default

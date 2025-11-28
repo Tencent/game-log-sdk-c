@@ -60,3 +60,7 @@ CMakeFiles/
 cmake_install.cmake
 Makefile.cmake
 compile_commands.json
+server/bin/*.pid
+server/bin/*.log
+server/data
+server/log
