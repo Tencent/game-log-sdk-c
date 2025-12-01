@@ -223,9 +223,9 @@ void tglog_mem_pool_destroy(tglog_mem_pool *pool);
    *
    * @param pool The memory pool.
    * @param stats The statistics.
-   * @return 0 on success, -1 on error.
+   * @return true on success, false on error.
    */
-int tglog_mem_pool_get_stats(tglog_mem_pool *pool, tglog_mem_pool_stats *stats);
+bool tglog_mem_pool_get_stats(tglog_mem_pool *pool, tglog_mem_pool_stats *stats);
 
 #ifdef __cplusplus
 }

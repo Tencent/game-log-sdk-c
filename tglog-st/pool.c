@@ -325,7 +325,7 @@ int tglog_mem_pool_stats_print(tglog_mem_pool_stats *stats, char *buffer, size_t
     for (int i = 0; i < 10; i++) {
         if (stats->payload_stats[i].capacity > 0) {
             uint64_t used = stats->payload_stats[i].capacity - stats->payload_stats[i].current_free;
-            double usage = (double) used / stats->payload_stats[i].capacity * 100.0;
+            double usage = (double) used / (double) stats->payload_stats[i].capacity * 100.0;
 
             n = snprintf(buffer + offset, size - offset,
                          "  %-10zu %-10lu %-10lu %-10lu %-10lu %-10lu %-9.2f%% %-9.2f%%\n",
@@ -362,7 +362,7 @@ int tglog_mem_pool_stats_print(tglog_mem_pool_stats *stats, char *buffer, size_t
     }
     offset += n;
 
-    return (int)offset;
+    return (int) offset;
 }
 
 int tglog_mem_pool_stats_print_json(tglog_mem_pool_stats *stats, char *buffer, size_t size) {
@@ -472,7 +472,7 @@ int tglog_mem_pool_stats_print_json(tglog_mem_pool_stats *stats, char *buffer, s
     }
     offset += n;
 
-    return (int)offset;
+    return (int) offset;
 }
 
 tglog_mem_pool *tglog_mem_pool_create(const tglog_conf *conf) {
@@ -516,9 +516,9 @@ static size_t ck_stack_count(ck_stack_t *stack) {
     return count;
 }
 
-int tglog_mem_pool_get_stats(tglog_mem_pool *pool, tglog_mem_pool_stats *stats) {
+bool tglog_mem_pool_get_stats(tglog_mem_pool *pool, tglog_mem_pool_stats *stats) {
     if (!pool || !stats) {
-        return -1;
+        return false;
     }
 
     /* Clear statistics structure */
@@ -535,7 +535,7 @@ int tglog_mem_pool_get_stats(tglog_mem_pool *pool, tglog_mem_pool_stats *stats) 
         /* Calculate hit rate */
         uint64_t total_requests = stats->msg_pool_hit_count + stats->msg_pool_miss_count;
         if (total_requests > 0) {
-            stats->msg_pool_hit_rate = (double) stats->msg_pool_hit_count / total_requests * 100.0;
+            stats->msg_pool_hit_rate = (double) stats->msg_pool_hit_count / (double) total_requests * 100.0;
         }
     }
 
@@ -561,7 +561,7 @@ int tglog_mem_pool_get_stats(tglog_mem_pool *pool, tglog_mem_pool_stats *stats) 
                 /* Calculate hit rate */
                 uint64_t requests = stats->payload_stats[i].hit_count + stats->payload_stats[i].miss_count;
                 if (requests > 0) {
-                    stats->payload_stats[i].hit_rate = (double) stats->payload_stats[i].hit_count / requests * 100.0;
+                    stats->payload_stats[i].hit_rate = (double) stats->payload_stats[i].hit_count / (double) requests * 100.0;
                 }
 
                 /* Accumulate to totals */
@@ -581,11 +581,11 @@ int tglog_mem_pool_get_stats(tglog_mem_pool *pool, tglog_mem_pool_stats *stats) 
 
         uint64_t total_payload_requests = total_hits + total_misses;
         if (total_payload_requests > 0) {
-            stats->total_payload_hit_rate = (double) total_hits / total_payload_requests * 100.0;
+            stats->total_payload_hit_rate = (double) total_hits / (double) total_payload_requests * 100.0;
         }
     }
 
-    return 0;
+    return true;
 }
 
 

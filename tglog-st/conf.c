@@ -87,17 +87,17 @@ void tglog_conf_set_default(tglog_conf *conf) {
     conf->max_messages_per_update = 1000;
 }
 
-int tglog_conf_set_server(tglog_conf *conf, tglog_network network, const char *host, int port) {
+bool tglog_conf_set_server(tglog_conf *conf, tglog_network network, const char *host, int port) {
     if (!conf) {
-        return -1;
+        return false;
     }
 
     if (network != TGLOG_NETWORK_TCP && network != TGLOG_NETWORK_UDP) {
-        return -1;
+        return false;
     }
 
     if (!host || port <= 0 || port > 65535) {
-        return -1;
+        return false;
     }
 
     conf->network = network;
@@ -105,7 +105,7 @@ int tglog_conf_set_server(tglog_conf *conf, tglog_network network, const char *h
     conf->host[sizeof(conf->host) - 1] = '\0';
     conf->port = port;
 
-    return 0;
+    return true;
 }
 
 void tglog_conf_set_debug_logger(tglog_conf *conf, can_log_func can_log, write_log_func write_log, void *user_data) {

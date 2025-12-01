@@ -95,9 +95,9 @@ void tglog_conf_set_default(tglog_conf *conf);
  * @param network The network type, TGLOG_NETWORK_UDP or TGLOG_NETWORK_TCP.
  * @param host The server IP/domain name.
  * @param port The server port number.
- * @return 0 on success, -1 on errors.
+ * @return true on success, false on errors.
  */
-int tglog_conf_set_server(tglog_conf *conf, tglog_network network, const char *host, int port);
+bool tglog_conf_set_server(tglog_conf *conf, tglog_network network, const char *host, int port);
 
 /**
  * Set debug logger for a tglog configuration
