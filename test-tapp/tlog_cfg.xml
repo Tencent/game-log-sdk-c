@@ -252,7 +252,7 @@
       <Type>NET</Type>
       <Device>
         <Net>
-          <Url>udp://dev.tglog.com:20001</Url>
+          <Url>tcp://dev.tglog.com:20001</Url>
           <Sendbuff>327680</Sendbuff>
           <RecvBuff>32768</RecvBuff>
           <AutoReconnect>1</AutoReconnect>

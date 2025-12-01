@@ -9,7 +9,7 @@
         <entry name="Port" type="int" defaultvalue="20001" desc="tglog server port"/>
         <entry name="Count" type="int" defaultvalue="10000000" desc="total log count to send"/>
         <entry name="Batch" type="int" defaultvalue="500" desc="log count to send every proc call"/>
-        <entry name="UseTLog" type="int" defaultvalue="0" desc="use TLog API to send logs"/>
+        <entry name="UseTLog" type="int" defaultvalue="0" desc="use TLog API to send logs, if we use TLog, please make sure we use the right protocol(tcp/udp) in tlog_cfg.xml"/>
     </struct>
 
 </metalib>

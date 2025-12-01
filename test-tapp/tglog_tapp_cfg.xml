@@ -9,7 +9,7 @@
 
     <!--Network: tcp/udp-->
     <!--DEFAULT VALUE: 'tcp'-->
-    <Network>udp</Network>
+    <Network>tcp</Network>
 
     <!--Server: tglog server-->
     <!--DEFAULT VALUE: 'dev.tglog.com'-->
@@ -27,8 +27,8 @@
     <!--DEFAULT VALUE: '500'-->
     <Batch>500 </Batch>
 
-    <!--UseTLog: use TLog API to send logs-->
+    <!--UseTLog: use TLog API to send logs, if we use TLog, please make sure we use the right protocol(tcp/udp) in tlog_cfg.xml-->
     <!--DEFAULT VALUE: '0'-->
-    <UseTLog>1 </UseTLog>
+    <UseTLog>0 </UseTLog>
 
 </TestTappCfg>
