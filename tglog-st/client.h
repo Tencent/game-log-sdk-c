@@ -77,13 +77,13 @@ typedef void (*tglog_send_callback)(const char *log_payload, int err_code, const
  * @param log_payload The payload of the log, should end with '\n'.
  * @param callback The callback function.
  * @param user_data The user data used to call the callback.
- * @param msg_flags The flags of the message, can be TGLOG_MSG_F_NONE, TGLOG_MSG_F_FREE or TGLOG_MSG_F_COPY, see def.h to reference the flags.
+ * @param msg_flag The flag of the message, can be TGLOG_MSG_F_NONE, TGLOG_MSG_F_FREE or TGLOG_MSG_F_COPY, see def.h to reference the flags.
  *  TGLOG_MSG_F_NONE: The client will not free or copy the log_payload, you need to free it yourself.
  *  TGLOG_MSG_F_FREE: The client will call free() to free the log_payload after sending, make sure your log_payload is allocated with malloc()/calloc().
  *  TGLOG_MSG_F_COPY: The client will copy the log_payload before sending, you can free it yourself after the call.
  * @return 0 on success, others on error, see def.h to reference the error codes.
  */
-int tglog_client_send(tglog_client *client, const char *log_payload, tglog_send_callback callback, void *user_data, char msg_flags);
+int tglog_client_send(tglog_client *client, const char *log_payload, tglog_send_callback callback, void *user_data, char msg_flag);
 
 /**
  * Get the size of the message queue.

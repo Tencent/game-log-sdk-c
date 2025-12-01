@@ -37,7 +37,7 @@ import java.nio.charset.StandardCharsets;
  */
 public class TglogClient implements AutoCloseable {
 
-    // Message flags constants
+    // Message flag constants
     public static final byte MSG_FLAG_NONE = 0x00;  // The TGLog client will not copy and free the message
     public static final byte MSG_FLAG_FREE = 0x01;  // The TGLog client will free the message after sending
     public static final byte MSG_FLAG_COPY = 0x02;  // The TGLog client will copy the message and free it after sending
@@ -140,10 +140,10 @@ public class TglogClient implements AutoCloseable {
      *
      * @param logPayload The log message to send
      * @param callback Callback to handle the result
-     * @param msgFlags Message flags (MSG_FLAG_NONE, MSG_FLAG_FREE, or MSG_FLAG_COPY)
+     * @param msgFlag Message flag (MSG_FLAG_NONE, MSG_FLAG_FREE, or MSG_FLAG_COPY)
      * @return A CompletableFuture that completes when the message is sent
      */
-    public CompletableFuture<Void> sendAsync(String logPayload, TglogCallback callback, byte msgFlags) {
+    public CompletableFuture<Void> sendAsync(String logPayload, TglogCallback callback, byte msgFlag) {
         checkNotClosed();
         
         if (logPayload == null || logPayload.trim().isEmpty()) {
@@ -187,7 +187,7 @@ public class TglogClient implements AutoCloseable {
             }
         };
         
-        int result = TglogJNI.sendAsync(clientHandle, logPayload, wrappedCallback, msgFlags);
+        int result = TglogJNI.sendAsync(clientHandle, logPayload, wrappedCallback, msgFlag);
         if (result != TglogJNI.TGLOG_ERR_OK) {
             String errorMsg = TglogJNI.getErrorMessage(result);
             future.completeExceptionally(new TglogException("Send failed immediately: " + errorMsg, result));

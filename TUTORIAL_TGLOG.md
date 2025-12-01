@@ -565,7 +565,7 @@ int tglog_client_send(
     const char *log_payload,
     tglog_send_callback callback,
     void *user_data,
-    char msg_flags
+    char msg_flag
 );
 ```
 
@@ -576,7 +576,7 @@ int tglog_client_send(
 - `log_payload`: 日志内容,必须以 `\n` 结尾
 - `callback`: 发送结果回调函数(可为 `NULL`)
 - `user_data`: 传递给回调函数的用户数据(可为 `NULL`)
-- `msg_flags`: 消息标志,控制内存管理方式
+- `msg_flag`: 消息标志,控制内存管理方式
 
 **返回值**: 成功返回 0,失败返回非 0 错误码。
 
@@ -589,7 +589,7 @@ int tglog_client_send(
 login|2025-06-06 12:00:00|alice|password\n
 ```
 
-**消息标志 (msg_flags)**:
+**消息标志 (msg_flag)**:
 
 1. **TGLOG_MSG_F_COPY** (推荐)
    ```c

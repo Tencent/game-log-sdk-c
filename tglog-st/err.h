@@ -30,6 +30,7 @@ extern "C" {
 #define TGLOG_ERR_NO_MATCH_REQ_FOR_RSP      10014
 #define TGLOG_ERR_CONN_CLOSED_BY_PEER       10015
 #define TGLOG_ERR_CONN_EAGAIN               10016
+#define TGLOG_ERR_BAD_FLAG                  10017
 #define TGLOG_ERR_UNKNOWN                   20001
 
 const char *tglog_get_err_msg(int code);

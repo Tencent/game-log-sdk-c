@@ -34,6 +34,8 @@ public class TglogJNI {
     public static final int TGLOG_ERR_WORKER_BUSY = 10013;
     public static final int TGLOG_ERR_NO_MATCH_REQ_FOR_RSP = 10014;
     public static final int TGLOG_ERR_CONN_CLOSED_BY_PEER = 10015;
+    public static final int TGLOG_ERR_CONN_EAGAIN = 10016;
+    public static final int TGLOG_ERR_BAD_FLAG = 10017;
     public static final int TGLOG_ERR_UNKNOWN = 20001;
     
     // Load the native library
@@ -92,14 +94,14 @@ public class TglogJNI {
      * @param clientHandle Client handle (must be valid, non-zero)
      * @param logPayload Log message payload (must not be null)
      * @param callback Callback object to handle result (can be null for fire-and-forget behavior)
-     * @param msgFlags Message flags (0x00=NONE, 0x01=FREE, 0x02=COPY)
+     * @param msgFlag Message flag (0x00=NONE, 0x01=FREE, 0x02=COPY)
      * @return TGLOG_ERR_OK on success (queued), error code on immediate failure
      * @throws IllegalArgumentException if clientHandle is INVALID_HANDLE or logPayload is null
      *
      * Note: When callback is null, the operation becomes fire-and-forget - success/failure
      * notifications will not be delivered, but no resource leaks will occur.
      */
-    public static native int sendAsync(long clientHandle, String logPayload, TglogCallback callback, byte msgFlags);
+    public static native int sendAsync(long clientHandle, String logPayload, TglogCallback callback, byte msgFlag);
     
     /**
      * Get metrics as JSON string
@@ -137,14 +139,14 @@ public class TglogJNI {
      * @param buffer DirectByteBuffer containing the log message
      * @param offset Offset in buffer where message starts
      * @param length Length of the message
-     * @param msgFlags Message flags (0x00=NONE, 0x01=FREE, 0x02=COPY)
+     * @param msgFlag Message flag (0x00=NONE, 0x01=FREE, 0x02=COPY)
      * @return TGLOG_ERR_OK on success (queued), error code on immediate failure
      * @throws IllegalArgumentException if clientHandle is INVALID_HANDLE or buffer is null
      *
      * Note: This method provides better performance than sendAsync by avoiding string copies
      * but does not provide delivery confirmation. Use sendDirectBufferAsync for callbacks.
      */
-    public static native int sendDirectBuffer(long clientHandle, java.nio.ByteBuffer buffer, int offset, int length, byte msgFlags);
+    public static native int sendDirectBuffer(long clientHandle, java.nio.ByteBuffer buffer, int offset, int length, byte msgFlag);
     
     /**
      * Send log using DirectByteBuffer with callback support
@@ -153,7 +155,7 @@ public class TglogJNI {
      * @param offset Offset in buffer where message starts
      * @param length Length of the message
      * @param callback Callback for delivery confirmation (can be null for fire-and-forget)
-     * @param msgFlags Message flags (0x00=NONE, 0x01=FREE, 0x02=COPY)
+     * @param msgFlag Message flag (0x00=NONE, 0x01=FREE, 0x02=COPY)
      * @return TGLOG_ERR_OK on success (queued), error code on immediate failure
      * @throws IllegalArgumentException if clientHandle is INVALID_HANDLE or buffer is null
      *
@@ -161,5 +163,5 @@ public class TglogJNI {
      * with the reliability of callbacks for production use. Recommended for high-throughput scenarios
      * where delivery confirmation is needed.
      */
-    public static native int sendDirectBufferAsync(long clientHandle, java.nio.ByteBuffer buffer, int offset, int length, TglogCallback callback, byte msgFlags);
+    public static native int sendDirectBufferAsync(long clientHandle, java.nio.ByteBuffer buffer, int offset, int length, TglogCallback callback, byte msgFlag);
 }

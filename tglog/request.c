@@ -14,7 +14,7 @@
 #include "pool.h"
 
 
-tglog_message *tglog_message_create(tglog_mem_pool *mem_pool, const char *payload, size_t len, tglog_msg_callback callback, void *user_data, char flags, tglog_metrics *metrics, int worker_id) {
+tglog_message *tglog_message_create(tglog_mem_pool *mem_pool, const char *payload, size_t len, tglog_msg_callback callback, void *user_data, char flag, tglog_metrics *metrics, int worker_id) {
     if (!payload || len <= 0) {
         return NULL;
     }
@@ -31,7 +31,7 @@ tglog_message *tglog_message_create(tglog_mem_pool *mem_pool, const char *payloa
     }
 
     /* Copy log payload if required */
-    if (flags & TGLOG_MSG_F_COPY) {
+    if (flag == TGLOG_MSG_F_COPY) {
         char *payload_buf = NULL;
         size_t payload_buf_len = len + 1; /* +1 for \0 */
         if (mem_pool) {
@@ -62,7 +62,7 @@ tglog_message *tglog_message_create(tglog_mem_pool *mem_pool, const char *payloa
     }
 
     msg->payload_len = len;
-    msg->flags = flags;
+    msg->flag = flag;
     msg->callback = callback;
     msg->user_data = user_data;
     msg->metrics = metrics;
@@ -86,7 +86,7 @@ static void tglog_message_reset(tglog_message *msg) {
     msg->user_data = NULL;
     msg->metrics = NULL;
     msg->worker_id = 0;
-    msg->flags = 0;
+    msg->flag = 0;
     msg->payload_pool = NULL;
     msg->pool = NULL;
 }
@@ -96,7 +96,7 @@ void tglog_message_destroy(tglog_message *msg) {
         return;
     }
 
-    if ((msg->flags & TGLOG_MSG_F_FREE) || (msg->flags & TGLOG_MSG_F_COPY)) {
+    if ((msg->flag == TGLOG_MSG_F_FREE) || (msg->flag == TGLOG_MSG_F_COPY)) {
         tglog_payload_pool *payload_pool = msg->payload_pool;
         if (payload_pool) {
             tglog_payload_pool_put_buf(payload_pool, msg->payload);

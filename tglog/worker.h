@@ -106,10 +106,10 @@ void tglog_worker_destroy(tglog_worker *worker);
  * @param log_payload The log payload.
  * @param callback The callback function.
  * @param user_data The user data passed to the callback.
- * @param msg_flags The message flags.
+ * @param msg_flag The message flag.
  * @return 0 on success, others on errors, see def.h to reference the error codes.
  */
-int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_callback callback, void *user_data, char msg_flags);
+int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_callback callback, void *user_data, char msg_flag);
 
 /**
  * On endpoint updated.

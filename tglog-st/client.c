@@ -160,7 +160,7 @@ static tglog_worker *tglog_client_get_worker(tglog_client *client) {
     return client->worker;
 }
 
-int tglog_client_send(tglog_client *client, const char *log_payload, tglog_send_callback callback, void *user_data, char msg_flags) {
+int tglog_client_send(tglog_client *client, const char *log_payload, tglog_send_callback callback, void *user_data, char msg_flag) {
     if (!log_payload) {
         if (callback) {
             callback(log_payload, TGLOG_ERR_BAD_LOG, "Payload is NULL", user_data);
@@ -168,11 +168,18 @@ int tglog_client_send(tglog_client *client, const char *log_payload, tglog_send_
         return TGLOG_ERR_BAD_LOG;
     }
 
+    if (msg_flag < TGLOG_MSG_F_NONE || msg_flag > TGLOG_MSG_F_COPY) {
+        if (callback){
+            callback(log_payload, TGLOG_ERR_BAD_FLAG, "Message flag is invalid", user_data);
+        }
+        return TGLOG_ERR_BAD_FLAG;
+    }
+
     if (!client) {
         if (callback) {
             callback(log_payload, TGLOG_ERR_UNKNOWN, "Client is NULL", user_data);
         }
-        if (msg_flags & TGLOG_MSG_F_FREE) {
+        if (msg_flag == TGLOG_MSG_F_FREE) {
             free((void *) log_payload);
         }
         return TGLOG_ERR_UNKNOWN;
@@ -184,13 +191,13 @@ int tglog_client_send(tglog_client *client, const char *log_payload, tglog_send_
         if (callback) {
             callback(log_payload, TGLOG_ERR_UNKNOWN, "Get worker failed", user_data);
         }
-        if (msg_flags & TGLOG_MSG_F_FREE) {
+        if (msg_flag == TGLOG_MSG_F_FREE) {
             free((void *) log_payload);
         }
         return TGLOG_ERR_UNKNOWN;
     }
 
-    int ret = tglog_worker_send(worker, log_payload, callback, user_data, msg_flags);
+    int ret = tglog_worker_send(worker, log_payload, callback, user_data, msg_flag);
     if ((int) tglog_worker_get_msg_queue_size(worker) >= client->conf.batching_max_messages) {
         tglog_client_update(client);
     }

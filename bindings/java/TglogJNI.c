@@ -637,7 +637,7 @@ JNIEXPORT void JNICALL Java_TglogJNI_destroyClient(JNIEnv *env, jclass cls, jlon
     }
 }
 
-JNIEXPORT jint JNICALL Java_TglogJNI_sendAsync(JNIEnv *env, jclass cls, jlong clientHandle, jstring logPayload, jobject callback, jbyte msgFlags) {
+JNIEXPORT jint JNICALL Java_TglogJNI_sendAsync(JNIEnv *env, jclass cls, jlong clientHandle, jstring logPayload, jobject callback, jbyte msgFlag) {
     if (clientHandle == TglogJNI_INVALID_HANDLE) {
         return TGLOG_ERR_UNKNOWN;  // Invalid handle
     }
@@ -669,7 +669,7 @@ JNIEXPORT jint JNICALL Java_TglogJNI_sendAsync(JNIEnv *env, jclass cls, jlong cl
             return TGLOG_ERR_MEMORY_ALLOC_FAILED;
         }
 
-        result = tglog_client_send(client, payload_str, java_send_callback_bridge, send_ctx, (char) msgFlags);
+        result = tglog_client_send(client, payload_str, java_send_callback_bridge, send_ctx, (char) msgFlag);
 
         // IMPORTANT: Do NOT cleanup here even if result != TGLOG_ERR_OK
         // tglog_client_send guarantees the callback will always be called
@@ -679,7 +679,7 @@ JNIEXPORT jint JNICALL Java_TglogJNI_sendAsync(JNIEnv *env, jclass cls, jlong cl
         // Cleaning up here would cause use-after-free when the callback is triggered
     } else {
         // Fire-and-forget mode
-        result = tglog_client_send(client, payload_str, NULL, NULL, (char) msgFlags);
+        result = tglog_client_send(client, payload_str, NULL, NULL, (char) msgFlag);
     }
 
     (*env)->ReleaseStringUTFChars(env, logPayload, payload_str);
@@ -733,7 +733,7 @@ JNIEXPORT jstring JNICALL Java_TglogJNI_getErrorMessage(JNIEnv *env, jclass cls,
 // DirectByteBuffer optimized send function for TglogJNI (without callback)
 JNIEXPORT jint JNICALL Java_TglogJNI_sendDirectBuffer(JNIEnv *env, jclass cls,
                                                       jlong clientHandle, jobject buffer,
-                                                      jint offset, jint length, jbyte msgFlags) {
+                                                      jint offset, jint length, jbyte msgFlag) {
     if (clientHandle == TglogJNI_INVALID_HANDLE || buffer == NULL) {
         return TGLOG_ERR_UNKNOWN;
     }
@@ -759,7 +759,7 @@ JNIEXPORT jint JNICALL Java_TglogJNI_sendDirectBuffer(JNIEnv *env, jclass cls,
     // Java side should have added it for zero-copy performance
     if (offset + length < capacity && log_start[length] == '\0') {
         // Perfect! The buffer is already null-terminated, true zero-copy
-        return tglog_client_send(client, log_start, NULL, NULL, (char) msgFlags);
+        return tglog_client_send(client, log_start, NULL, NULL, (char) msgFlag);
     }
 
     // Fallback: Need to make a copy to ensure null termination
@@ -772,7 +772,7 @@ JNIEXPORT jint JNICALL Java_TglogJNI_sendDirectBuffer(JNIEnv *env, jclass cls,
     memcpy(log_copy, log_start, length);
     log_copy[length] = '\0';
 
-    int result = tglog_client_send(client, log_copy, NULL, NULL, (char) msgFlags);
+    int result = tglog_client_send(client, log_copy, NULL, NULL, (char) msgFlag);
     free(log_copy);
 
     return result;
@@ -781,7 +781,7 @@ JNIEXPORT jint JNICALL Java_TglogJNI_sendDirectBuffer(JNIEnv *env, jclass cls,
 // DirectByteBuffer optimized send function with callback support
 JNIEXPORT jint JNICALL Java_TglogJNI_sendDirectBufferAsync(JNIEnv *env, jclass cls,
                                                            jlong clientHandle, jobject buffer,
-                                                           jint offset, jint length, jobject callback, jbyte msgFlags) {
+                                                           jint offset, jint length, jobject callback, jbyte msgFlag) {
     if (clientHandle == TglogJNI_INVALID_HANDLE || buffer == NULL) {
         return TGLOG_ERR_UNKNOWN;
     }
@@ -820,7 +820,7 @@ JNIEXPORT jint JNICALL Java_TglogJNI_sendDirectBufferAsync(JNIEnv *env, jclass c
         // Check if there's a null terminator for zero-copy
         if (offset + length < capacity && log_start[length] == '\0') {
             // Zero-copy with callback
-            result = tglog_client_send(client, log_start, java_send_callback_bridge, send_ctx, (char) msgFlags);
+            result = tglog_client_send(client, log_start, java_send_callback_bridge, send_ctx, (char) msgFlag);
         } else {
             // Need to copy for null termination
             char *log_copy = (char *) malloc(length + 1);
@@ -833,7 +833,7 @@ JNIEXPORT jint JNICALL Java_TglogJNI_sendDirectBufferAsync(JNIEnv *env, jclass c
             memcpy(log_copy, log_start, length);
             log_copy[length] = '\0';
 
-            result = tglog_client_send(client, log_copy, java_send_callback_bridge, send_ctx, (char) msgFlags);
+            result = tglog_client_send(client, log_copy, java_send_callback_bridge, send_ctx, (char) msgFlag);
             free(log_copy);
         }
 
@@ -841,7 +841,7 @@ JNIEXPORT jint JNICALL Java_TglogJNI_sendDirectBufferAsync(JNIEnv *env, jclass c
     } else {
         // Fire-and-forget mode
         if (offset + length < capacity && log_start[length] == '\0') {
-            result = tglog_client_send(client, log_start, NULL, NULL, (char) msgFlags);
+            result = tglog_client_send(client, log_start, NULL, NULL, (char) msgFlag);
         } else {
             char *log_copy = (char *) malloc(length + 1);
             if (log_copy == NULL) {
@@ -851,7 +851,7 @@ JNIEXPORT jint JNICALL Java_TglogJNI_sendDirectBufferAsync(JNIEnv *env, jclass c
             memcpy(log_copy, log_start, length);
             log_copy[length] = '\0';
 
-            result = tglog_client_send(client, log_copy, NULL, NULL, (char) msgFlags);
+            result = tglog_client_send(client, log_copy, NULL, NULL, (char) msgFlag);
             free(log_copy);
         }
     }

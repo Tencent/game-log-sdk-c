@@ -33,7 +33,7 @@ typedef struct tglog_message {
     void *user_data;                    /* user data to pass to the callback */
     tglog_metrics *metrics;             /* metrics for the message */
     int worker_id;                      /* id of the worker that created the message */
-    char flags;                         /* message flags */
+    char flag;                         /* message flags */
     tglog_payload_pool *payload_pool;   /* payload pool */
     tglog_message_pool *pool;           /* message pool */
     ck_stack_entry_t stack_entry;       /* stack entry */
@@ -48,12 +48,12 @@ CK_RING_PROTOTYPE(msg_queue, tglog_message*);
  * @param len The length of the payload.
  * @param callback The callback function for message completion.
  * @param user_data User data to pass to the callback.
- * @param flags The message flags.
+ * @param flag The message flag.
  * @param metrics Metrics for the message.
  * @param worker_id The id of the worker that created the message.
  * @return A message or NULL on errors.
  */
-tglog_message *tglog_message_create(tglog_mem_pool *mem_pool, const char *payload, size_t len, tglog_msg_callback callback, void *user_data, char flags, tglog_metrics *metrics, int worker_id);
+tglog_message *tglog_message_create(tglog_mem_pool *mem_pool, const char *payload, size_t len, tglog_msg_callback callback, void *user_data, char flag, tglog_metrics *metrics, int worker_id);
 
 /**
  * Get the length of a message.

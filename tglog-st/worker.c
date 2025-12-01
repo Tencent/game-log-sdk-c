@@ -2206,7 +2206,7 @@ void tglog_worker_destroy(tglog_worker *worker) {
     free(worker);
 }
 
-int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_callback callback, void *user_data, char msg_flags) {
+int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_callback callback, void *user_data, char msg_flag) {
     tglog_debug(worker->logger, "Worker: %d", worker->id);
 
     tglog_metrics_inc_request_msg_count(worker->metrics, 1);
@@ -2219,7 +2219,7 @@ int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_
             callback(log_payload, TGLOG_ERR_BAD_LOG, tglog_get_err_msg(TGLOG_ERR_BAD_LOG), user_data);
         }
 
-        if (msg_flags & TGLOG_MSG_F_FREE) {
+        if (msg_flag == TGLOG_MSG_F_FREE) {
             free((void *) log_payload);
         }
 
@@ -2235,7 +2235,7 @@ int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_
             callback(log_payload, TGLOG_ERR_BAD_LOG, tglog_get_err_msg(TGLOG_ERR_BAD_LOG), user_data);
         }
 
-        if (msg_flags & TGLOG_MSG_F_FREE) {
+        if (msg_flag == TGLOG_MSG_F_FREE) {
             free((void *) log_payload);
         }
 
@@ -2263,7 +2263,7 @@ int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_
             callback(log_payload, TGLOG_ERR_LOG_TOO_LONG, tglog_get_err_msg(TGLOG_ERR_LOG_TOO_LONG), user_data);
         }
 
-        if (msg_flags & TGLOG_MSG_F_FREE) {
+        if (msg_flag == TGLOG_MSG_F_FREE) {
             free((void *) log_payload);
         }
 
@@ -2279,7 +2279,7 @@ int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_
             callback(log_payload, TGLOG_ERR_PRODUCER_CLOSED, tglog_get_err_msg(TGLOG_ERR_PRODUCER_CLOSED), user_data);
         }
 
-        if (msg_flags & TGLOG_MSG_F_FREE) {
+        if (msg_flag == TGLOG_MSG_F_FREE) {
             free((void *) log_payload);
         }
 
@@ -2288,14 +2288,14 @@ int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_
     }
 
     /* Create message with metrics */
-    tglog_message *msg = tglog_message_create(worker->client->mem_pool, log_payload, log_payload_len, callback, user_data, msg_flags, worker->metrics, worker->id);
+    tglog_message *msg = tglog_message_create(worker->client->mem_pool, log_payload, log_payload_len, callback, user_data, msg_flag, worker->metrics, worker->id);
     if (!msg) {
         tglog_fatal(worker->logger, "Create msg failed, worker: %d", worker->id);
         if (callback) {
             callback(log_payload, TGLOG_ERR_MEMORY_ALLOC_FAILED, tglog_get_err_msg(TGLOG_ERR_MEMORY_ALLOC_FAILED), user_data);
         }
 
-        if (msg_flags & TGLOG_MSG_F_FREE) {
+        if (msg_flag == TGLOG_MSG_F_FREE) {
             free((void *) log_payload);
         }
 

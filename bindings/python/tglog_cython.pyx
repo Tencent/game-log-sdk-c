@@ -85,7 +85,7 @@ cdef extern from "client.h":
     tglog_client* tglog_client_create(tglog_conf* conf)
     void tglog_client_destroy(tglog_client* client)
     int tglog_client_send(tglog_client* client, const char* payload,
-                          tglog_send_callback callback, void* user_data, char msg_flags) nogil
+                          tglog_send_callback callback, void* user_data, char msg_flag) nogil
     int tglog_client_print_metrics(tglog_client* client, char* buffer, size_t size, bint json)
 
 cdef extern from "ck_pr.h":
@@ -100,6 +100,20 @@ cdef extern from "err.h":
     int TGLOG_ERR_SEND_FAILED
     int TGLOG_ERR_PRODUCER_CLOSED
     int TGLOG_ERR_SEND_QUEUE_IS_FULL
+    int TGLOG_ERR_NO_AVAILABLE_CONN
+    int TGLOG_ERR_NEW_CONN_FAILED
+    int TGLOG_ERR_CONN_WRITE_FAILED
+    int TGLOG_ERR_CONN_READ_FAILED
+    int TGLOG_ERR_LOG_TOO_LONG
+    int TGLOG_ERR_BAD_LOG
+    int TGLOG_ERR_BATCH_SIZE_EXCEEDED
+    int TGLOG_ERR_MEMORY_ALLOC_FAILED
+    int TGLOG_ERR_WORKER_BUSY
+    int TGLOG_ERR_NO_MATCH_REQ_FOR_RSP
+    int TGLOG_ERR_CONN_CLOSED_BY_PEER
+    int TGLOG_ERR_CONN_EAGAIN
+    int TGLOG_ERR_BAD_FLAG
+    int TGLOG_ERR_UNKNOWN
 
 # Global initialization
 cdef int _initialized = 0
@@ -195,7 +209,7 @@ cdef class TglogClient:
         if self.counter:
             free(self.counter)
     
-    cpdef int send(self, bytes message, bint use_callback=False, char msg_flags=TGLOG_MSG_F_COPY):
+    cpdef int send(self, bytes message, bint use_callback=False, char msg_flag=TGLOG_MSG_F_COPY):
         """Send single message with minimal overhead"""
         if self.destroyed or not self.client:
             return -1
@@ -205,10 +219,10 @@ cdef class TglogClient:
             tglog_send_callback cb = <tglog_send_callback>fast_callback if use_callback else <tglog_send_callback>NULL
             void* user_data = <void*>self.counter if use_callback else NULL
 
-        return tglog_client_send(self.client, msg_ptr, cb, user_data, msg_flags)
+        return tglog_client_send(self.client, msg_ptr, cb, user_data, msg_flag)
     
     
-    cdef int send_raw(self, const char* message, int length, bint use_callback, char msg_flags=TGLOG_MSG_F_COPY) nogil:
+    cdef int send_raw(self, const char* message, int length, bint use_callback, char msg_flag=TGLOG_MSG_F_COPY) nogil:
         """Send raw message without any Python overhead (nogil)"""
         if self.destroyed or not self.client:
             return -1
@@ -217,7 +231,7 @@ cdef class TglogClient:
             tglog_send_callback cb = <tglog_send_callback>fast_callback if use_callback else <tglog_send_callback>NULL
             void* user_data = <void*>self.counter if use_callback else NULL
 
-        return tglog_client_send(self.client, message, cb, user_data, msg_flags)
+        return tglog_client_send(self.client, message, cb, user_data, msg_flag)
     
     cpdef tuple get_callback_stats(self):
         """Get callback statistics"""

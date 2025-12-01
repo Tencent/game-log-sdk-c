@@ -135,12 +135,12 @@ static PyObject *TglogClient_send(TglogClientObject *self, PyObject *args, PyObj
     const char *message;
     Py_ssize_t message_len;
     int use_callback = 0;
-    char msg_flags = 0x02;  /* Default to TGLOG_MSG_F_COPY for safety */
+    char msg_flag = 0x02;  /* Default to TGLOG_MSG_F_COPY for safety */
 
-    static char *kwlist[] = {"message", "use_callback", "msg_flags", NULL};
+    static char *kwlist[] = {"message", "use_callback", "msg_flag", NULL};
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s#|pb", kwlist,
-                                     &message, &message_len, &use_callback, &msg_flags)) {
+                                     &message, &message_len, &use_callback, &msg_flag)) {
         return NULL;
     }
 
@@ -152,7 +152,7 @@ static PyObject *TglogClient_send(TglogClientObject *self, PyObject *args, PyObj
     tglog_send_callback callback = use_callback ? fast_callback : NULL;
     void *user_data = use_callback ? self->counter : NULL;
 
-    int result = tglog_client_send(self->client, message, callback, user_data, msg_flags);
+    int result = tglog_client_send(self->client, message, callback, user_data, msg_flag);
 
     return PyLong_FromLong(result);
 }
@@ -284,6 +284,20 @@ PyMODINIT_FUNC PyInit_tglog_ext(void) {
     PyModule_AddIntConstant(m, "ERR_SEND_FAILED", TGLOG_ERR_SEND_FAILED);
     PyModule_AddIntConstant(m, "ERR_PRODUCER_CLOSED", TGLOG_ERR_PRODUCER_CLOSED);
     PyModule_AddIntConstant(m, "ERR_SEND_QUEUE_IS_FULL", TGLOG_ERR_SEND_QUEUE_IS_FULL);
+    PyModule_AddIntConstant(m, "ERR_NO_AVAILABLE_CONN", TGLOG_ERR_NO_AVAILABLE_CONN);
+    PyModule_AddIntConstant(m, "ERR_NEW_CONN_FAILED", TGLOG_ERR_NEW_CONN_FAILED);
+    PyModule_AddIntConstant(m, "ERR_CONN_WRITE_FAILED", TGLOG_ERR_CONN_WRITE_FAILED);
+    PyModule_AddIntConstant(m, "ERR_CONN_READ_FAILED", TGLOG_ERR_CONN_READ_FAILED);
+    PyModule_AddIntConstant(m, "ERR_LOG_TOO_LONG", TGLOG_ERR_LOG_TOO_LONG);
+    PyModule_AddIntConstant(m, "ERR_BAD_LOG", TGLOG_ERR_BAD_LOG);
+    PyModule_AddIntConstant(m, "ERR_BATCH_SIZE_EXCEEDED", TGLOG_ERR_BATCH_SIZE_EXCEEDED);
+    PyModule_AddIntConstant(m, "ERR_MEMORY_ALLOC_FAILED", TGLOG_ERR_MEMORY_ALLOC_FAILED);
+    PyModule_AddIntConstant(m, "ERR_WORKER_BUSY", TGLOG_ERR_WORKER_BUSY);
+    PyModule_AddIntConstant(m, "ERR_NO_MATCH_REQ_FOR_RSP", TGLOG_ERR_NO_MATCH_REQ_FOR_RSP);
+    PyModule_AddIntConstant(m, "ERR_CONN_CLOSED_BY_PEER", TGLOG_ERR_CONN_CLOSED_BY_PEER);
+    PyModule_AddIntConstant(m, "ERR_CONN_EAGAIN", TGLOG_ERR_CONN_EAGAIN);
+    PyModule_AddIntConstant(m, "ERR_BAD_FLAG", TGLOG_ERR_BAD_FLAG);
+    PyModule_AddIntConstant(m, "ERR_UNKNOWN", TGLOG_ERR_UNKNOWN);
     
     return m;
 }

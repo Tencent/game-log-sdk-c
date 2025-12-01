@@ -44,14 +44,31 @@ if not tglog_lib:
 TGLOG_NETWORK_UDP = 0
 TGLOG_NETWORK_TCP = 1
 
-# Message flags
+# Message flag
 TGLOG_MSG_F_NONE = 0x00  # The TGLog client will not copy and free the message
 TGLOG_MSG_F_FREE = 0x01  # The TGLog client will free the message after sending
 TGLOG_MSG_F_COPY = 0x02  # The TGLog client will copy the message and free it after sending
 
 # Error codes
 TGLOG_ERR_OK = 0
+TGLOG_ERR_SEND_TIMEOUT = 10001
+TGLOG_ERR_SEND_FAILED = 10002
+TGLOG_ERR_PRODUCER_CLOSED = 10003
 TGLOG_ERR_SEND_QUEUE_IS_FULL = 10004
+TGLOG_ERR_NO_AVAILABLE_CONN = 10005
+TGLOG_ERR_NEW_CONN_FAILED = 10006
+TGLOG_ERR_CONN_WRITE_FAILED = 10007
+TGLOG_ERR_CONN_READ_FAILED = 10008
+TGLOG_ERR_LOG_TOO_LONG = 10009
+TGLOG_ERR_BAD_LOG = 10010
+TGLOG_ERR_BATCH_SIZE_EXCEEDED = 10011
+TGLOG_ERR_MEMORY_ALLOC_FAILED = 10012
+TGLOG_ERR_WORKER_BUSY = 10013
+TGLOG_ERR_NO_MATCH_REQ_FOR_RSP = 10014
+TGLOG_ERR_CONN_CLOSED_BY_PEER = 10015
+TGLOG_ERR_CONN_EAGAIN = 10016
+TGLOG_ERR_BAD_FLAG = 10017
+TGLOG_ERR_UNKNOWN = 20001
 
 # C structures
 class TglogConf(Structure):
@@ -191,7 +208,7 @@ class TglogClientPy:
             self._callback = SendCallbackFunc(callback_func)
             self._callback_ptr = ctypes.cast(self._callback, c_void_p)
     
-    def send(self, message, callback=None, msg_flags=TGLOG_MSG_F_COPY):
+    def send(self, message, callback=None, msg_flag=TGLOG_MSG_F_COPY):
         """
         Send a message with optional callback
 
@@ -203,7 +220,7 @@ class TglogClientPy:
                 - "global": Use global high-performance counter
                 - callable: Custom Python function(payload, err_code, err_msg)
                 - ctypes callback: Raw C callback function
-            msg_flags: Message flags (default: TGLOG_MSG_F_COPY for safety)
+            msg_flag: Message flag (default: TGLOG_MSG_F_COPY for safety)
                 - TGLOG_MSG_F_NONE: No memory management (use with caution)
                 - TGLOG_MSG_F_FREE: Free the message after sending (not for Python strings)
                 - TGLOG_MSG_F_COPY: Copy the message (safest, default)
@@ -262,7 +279,7 @@ class TglogClientPy:
             callback_ptr = ctypes.cast(callback, c_void_p)
             
         return tglog_lib.tglog_client_send(
-            self._client, message_bytes, callback_ptr, None, ctypes.c_char(msg_flags)
+            self._client, message_bytes, callback_ptr, None, ctypes.c_char(msg_flag)
         )
     
     
