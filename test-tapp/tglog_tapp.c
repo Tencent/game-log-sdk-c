@@ -50,28 +50,40 @@ void tglog_client_debug_log(void *user_data, tglog_level level, const char *file
         return;
     }
 
+    int priority = TLOG_PRIORITY_DEBUG;
+    switch (level) {
+        case TGLOG_LEVEL_DEBUG:
+            priority = TLOG_PRIORITY_DEBUG;
+            break;
+        case TGLOG_LEVEL_INFO:
+            priority = TLOG_PRIORITY_INFO;
+            break;
+        case TGLOG_LEVEL_WARN:
+            priority = TLOG_PRIORITY_WARN;
+            break;
+        case TGLOG_LEVEL_ERROR:
+            priority = TLOG_PRIORITY_ERROR;
+            break;
+        case TGLOG_LEVEL_FATAL:
+            priority = TLOG_PRIORITY_FATAL;
+            break;
+    }
+
     char log_buf[2048];
     va_list args;
     va_start(args, format);
     vsnprintf(log_buf, sizeof(log_buf), format, args);
     va_end(args);
 
-    switch (level) {
-        case TGLOG_LEVEL_DEBUG:
-            tlog_debug(g_app_context.app_debug_log, 0, 0, "%s", log_buf);
-            break;
-        case TGLOG_LEVEL_INFO:
-            tlog_info(g_app_context.app_debug_log, 0, 0, "%s", log_buf);
-            break;
-        case TGLOG_LEVEL_WARN:
-            tlog_warn(g_app_context.app_debug_log, 0, 0, "%s", log_buf);
-            break;
-        case TGLOG_LEVEL_ERROR:
-            tlog_error(g_app_context.app_debug_log, 0, 0, "%s", log_buf);
-            break;
-        case TGLOG_LEVEL_FATAL:
-            tlog_fatal(g_app_context.app_debug_log, 0, 0, "%s", log_buf);
-            break;
+    if (tlog_category_is_priority_enabled(g_app_context.app_debug_log, priority) && (tlog_category_can_write(g_app_context.app_debug_log, priority, 0, 0))) {
+        TLOGEVENT stEvt;
+        const TLOGLOCINFO loc_info = {file, line, func, NULL};
+        stEvt.evt_priority = priority;
+        stEvt.evt_id = 0;
+        stEvt.evt_cls = 0;
+        stEvt.evt_is_msg_binary = 0;
+        stEvt.evt_loc = &loc_info;
+        tlog_category_logv(g_app_context.app_debug_log, &stEvt, "%s", log_buf);
     }
 }
 
