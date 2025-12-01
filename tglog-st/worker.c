@@ -2239,8 +2239,8 @@ int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_
             free((void *) log_payload);
         }
 
-        tglog_metrics_inc_dropped_msg_count(worker->metrics, worker->id);
-        tglog_metrics_inc_failed_msg_count(worker->metrics, worker->id);
+        tglog_metrics_inc_dropped_msg_count(worker->metrics, 1);
+        tglog_metrics_inc_failed_msg_count(worker->metrics, 1);
         return TGLOG_ERR_BAD_LOG;
     }
 
