@@ -13,6 +13,23 @@
 
 在**两台服务器**上分别执行以下操作。
 
+### 0. 修改内核参数
+为了获取最优性能，以root身份执行以下命令
+```bash
+echo "net.core.rmem_max=256000000" >> /etc/sysctl.conf
+echo "net.core.wmem_max=256000000" >> /etc/sysctl.conf
+echo "net.core.rmem_default=104857600" >> /etc/sysctl.conf
+echo "net.core.wmem_default=104857600" >> /etc/sysctl.conf
+echo "net.ipv4.udp_rmem_min=104857600" >> /etc/sysctl.conf
+echo "net.ipv4.udp_wmem_min=104857600" >> /etc/sysctl.conf
+echo "net.ipv4.tcp_wmem=262144 114688000 131071000" >> /etc/sysctl.conf
+echo "net.ipv4.tcp_rmem=262144 114688000 131071000" >> /etc/sysctl.conf
+echo "net.core.netdev_max_backlog=10000" >> /etc/sysctl.conf
+echo "net.ipv4.tcp_max_syn_backlog=10000" >> /etc/sysctl.conf
+echo "net.core.somaxconn=4096" >> /etc/sysctl.conf
+sysctl -p
+```
+
 ### 1. 创建部署目录
 
 ```bash
@@ -84,6 +101,22 @@ ping dev.tglog.com
 
 # 测试端口连通
 telnet dev.tglog.com 20001
+```
+### 4. 修改内核参数
+为了获取最优性能，以root身份执行以下命令
+```bash
+echo "net.core.rmem_max=256000000" >> /etc/sysctl.conf
+echo "net.core.wmem_max=256000000" >> /etc/sysctl.conf
+echo "net.core.rmem_default=104857600" >> /etc/sysctl.conf
+echo "net.core.wmem_default=104857600" >> /etc/sysctl.conf
+echo "net.ipv4.udp_rmem_min=104857600" >> /etc/sysctl.conf
+echo "net.ipv4.udp_wmem_min=104857600" >> /etc/sysctl.conf
+echo "net.ipv4.tcp_wmem=262144 114688000 131071000" >> /etc/sysctl.conf
+echo "net.ipv4.tcp_rmem=262144 114688000 131071000" >> /etc/sysctl.conf
+echo "net.core.netdev_max_backlog=10000" >> /etc/sysctl.conf
+echo "net.ipv4.tcp_max_syn_backlog=10000" >> /etc/sysctl.conf
+echo "net.core.somaxconn=4096" >> /etc/sysctl.conf
+sysctl -p
 ```
 
 ## 测试验证
