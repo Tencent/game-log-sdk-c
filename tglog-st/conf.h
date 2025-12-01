@@ -47,7 +47,7 @@ typedef struct tglog_conf {
     int batching_max_size;                  /* max batch size in bytes, default: 32*1024 */
     int max_pending_messages;               /* how many messages can be pending every worker, single-threaded version has only 1 worker, default: 1000000, the real value will be the next power of 2 of this config */
     int send_timeout;                       /* send timeout in ms, how long can a message stay in the client, default: 30000ms */
-    int max_retries;                        /* max retry counts, default: 3 */
+    int max_retries;                        /* max retry counts, default: 10 */
     int stop_timeout;                       /* stop timeout in ms, default: 3000ms */
     /* debug logger */
     can_log_func can_log;                   /* debug log filter func, default: tglog_can_log_info*/

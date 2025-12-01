@@ -62,7 +62,7 @@ void tglog_conf_set_default(tglog_conf *conf) {
     conf->batching_max_size = 32 * 1024;
     conf->max_pending_messages = 409600;
     conf->send_timeout = 30000;
-    conf->max_retries = 3;
+    conf->max_retries = 10;
     conf->stop_timeout = 3000;
 
     /* debug logger defaults */
