@@ -2027,7 +2027,7 @@ static void tglog_worker_on_close(tglog_worker *worker) {
     }
 
     /* Flush all the messages without retry */
-    tglog_info(worker->logger, "Flush all the messages without retry, id: %d", worker->id);
+    tglog_info(worker->logger, "Flush all the messages without retry, id: %d, left: %u", worker->id, ck_ring_size(&worker->message_queue));
     while (ck_ring_size(&worker->message_queue) > 0 || worker->tmp_message != NULL) {
         tglog_worker_handle_msg(worker, false, 100, 0);
     }
