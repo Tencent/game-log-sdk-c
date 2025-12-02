@@ -23,8 +23,8 @@
 #include "err.h"
 #include "metrics.h"
 
-/* TGLog v1 has no response, 5s is enough */
-#define TGLOG_DEFAULT_CONN_CLOSE_DELAY      5
+/* TGLog v1 has no response, 30s is enough */
+#define TGLOG_DEFAULT_CONN_CLOSE_DELAY      30
 #define TGLOG_MSG_PER_RUN                   3000
 
 #define TGLOG_WORKER_NOTIFY_ENDPOINT EV_TIMEOUT     /* Endpoint updated notify */
@@ -580,8 +580,9 @@ static void tglog_worker_on_conn_error(tglog_worker *worker, tglog_conn *conn, s
             break;
     }
 
-    /* If it is not EAGAIN error, close the connection immediately */
-    tglog_worker_close_conn_delay(worker, conn, e_again ? TGLOG_DEFAULT_CONN_CLOSE_DELAY : 0);
+    /* If there is no pending data, close the connection 5s later */
+    size_t out_buffer_len = tglog_conn_get_out_buffer_len(conn);
+    tglog_worker_close_conn_delay(worker, conn, out_buffer_len > 0 ? TGLOG_DEFAULT_CONN_CLOSE_DELAY : 5);
 }
 
 static void tglog_worker_on_event(struct bufferevent *bev, short what, void *user_data) {
@@ -1424,17 +1425,22 @@ static int tglog_worker_send_batch_tcp(tglog_worker *worker) {
     }
 
     size_t sent = 0;
+    int try_count = 0;
     while (sent < batch_buf_len) {
+        try_count++;
         ssize_t bytes_sent = tglog_conn_sendv_with_bufferevent(conn, batch_iov, batch_iov_count);
-        if (bytes_sent < 0) {
-            tglog_error(worker->logger, "Send batch failed, we will retry later, worker: %d, addr: %s, sent: %d", worker->id, conn->endpoint, bytes_sent);
+        // tglog_conn_sendv_with_bufferevent return 0 means exceeded the high watermark
+        if (bytes_sent <= 0) {
+            tglog_error(worker->logger, "Send batch failed, we will retry later, worker: %d, addr: %s, sent: %d, try_count: %d", worker->id, conn->endpoint, bytes_sent, try_count);
 
             /* Mark the endpoint as unavailable, remove the connection and supplement a new connection */
-            tglog_worker_on_conn_error(worker, conn, BEV_EVENT_WRITING | BEV_EVENT_ERROR, false);
+            if (bytes_sent < 0) {
+                tglog_worker_on_conn_error(worker, conn, BEV_EVENT_WRITING | BEV_EVENT_ERROR, false);
+            }
 
-            if (worker->conns->count > 0) {
+            if (worker->conns->count > 0 && try_count < worker->conns->count) {
                 conn = tglog_worker_get_conn(worker);
-                tglog_warn(worker->logger, "Send batch failed, now retry with new conn, worker: %d, addr: %s", worker->id, conn->endpoint);
+                tglog_warn(worker->logger, "Send batch failed, now retry with new conn, worker: %d, addr: %s, try_count: %d", worker->id, conn->endpoint, try_count);
                 continue;
             }
 

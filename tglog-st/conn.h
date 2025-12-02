@@ -104,7 +104,7 @@ ssize_t tglog_conn_send_with_bufferevent(tglog_conn *conn, const void *data, siz
  * @param conn The connection.
  * @param iov The data to send.
  * @param iovcnt The number of the data.
- * @return The number sent or -1.
+ * @return The number sent on success, 0 on bufferevent exceeds the high watermark or -1 on error.
  */
 ssize_t tglog_conn_sendv_with_bufferevent(tglog_conn *conn, const struct iovec *iov, int iovcnt);
 

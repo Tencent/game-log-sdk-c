@@ -160,7 +160,7 @@ ssize_t tglog_conn_sendv_with_bufferevent(tglog_conn *conn, const struct iovec *
     }
 
     if (total_len == 0) {
-        return -1;
+        return 0;
     }
 
     size_t out_buffer_len = tglog_conn_get_out_buffer_len(conn);
@@ -169,9 +169,8 @@ ssize_t tglog_conn_sendv_with_bufferevent(tglog_conn *conn, const struct iovec *
     if (out_buffer_len > 0) {
         size_t high_watermark = conn->write_high_watermark > 0 ? conn->write_high_watermark : TGLOG_DEFAULT_WRITE_HIGH_WATERMARK;
         if (out_buffer_len > high_watermark) {
-            errno = ENOBUFS;
             tglog_error(conn->worker->logger, "out_buffer_len > high_watermark: %zu > %zu", out_buffer_len, high_watermark);
-            return -1;
+            return 0;
         }
 
         /* Write all iovec data to bufferevent */
@@ -187,8 +186,11 @@ ssize_t tglog_conn_sendv_with_bufferevent(tglog_conn *conn, const struct iovec *
     }
 
     /* If out_buf is empty, try to send directly with writev */
+    bool eagain = false;
     ssize_t sent = writev(conn->fd, iov, iovcnt);
     if (sent < 0) {
+        // tglog_error may update errno, we need to save it first
+        eagain = errno == EAGAIN || errno == EWOULDBLOCK;
         tglog_error(conn->worker->logger, "writev failed: %s", strerror(errno));
     }
 
@@ -197,7 +199,6 @@ ssize_t tglog_conn_sendv_with_bufferevent(tglog_conn *conn, const struct iovec *
         return sent;
     }
 
-    bool eagain = errno == EAGAIN || errno == EWOULDBLOCK;
     if (eagain) {
         tglog_worker_on_conn_eagain(conn->worker);
     }
