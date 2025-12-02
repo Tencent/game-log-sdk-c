@@ -25,7 +25,7 @@
 
     <!--Batch: log count to send every proc call-->
     <!--DEFAULT VALUE: '500'-->
-    <Batch>500 </Batch>
+    <Batch>100 </Batch>
 
     <!--UseTLog: use TLog API to send logs, if we use TLog, please make sure we use the right protocol(tcp/udp) in tlog_cfg.xml-->
     <!--DEFAULT VALUE: '0'-->

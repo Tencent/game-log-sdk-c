@@ -253,7 +253,7 @@
       <Device>
         <Net>
           <Url>tcp://dev.tglog.com:20001</Url>
-          <Sendbuff>327680</Sendbuff>
+          <Sendbuff>67108864</Sendbuff>
           <RecvBuff>32768</RecvBuff>
           <AutoReconnect>1</AutoReconnect>
           <MaxRetry>10</MaxRetry>

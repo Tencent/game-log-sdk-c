@@ -1,4 +1,6 @@
 #include <string.h>
+#include <stdlib.h>
+#include <time.h>
 
 #include "pal/pal.h"
 #include "tdr/tdr.h"
@@ -25,6 +27,8 @@ struct app_context {
     int sent_fail_count;
     struct timeval start_time;
     bool done;
+    char *log_templates[10];  // Store 10 different size logs
+    int log_count;
 };
 
 typedef struct app_context APP_CONTEXT;
@@ -33,8 +37,14 @@ typedef struct app_context *LPAPP_CONTEXT;
 TAPPCTX g_framework_context;
 APP_CONTEXT g_app_context;
 
-void uninit_app_context() {
+// Forward declarations
+char* generate_log(int target_size);
+void init_log_templates(APP_CONTEXT *app_ctx);
+void free_log_templates(APP_CONTEXT *app_ctx);
+char* get_random_log(APP_CONTEXT *app_ctx);
 
+void uninit_app_context() {
+    free_log_templates(&g_app_context);
 }
 
 void write_login_log(unsigned long long roleId, int roleLevel) {
@@ -69,7 +79,7 @@ void tglog_client_debug_log(void *user_data, tglog_level level, const char *file
             break;
     }
 
-    char log_buf[2048];
+    static char log_buf[4096];
     va_list args;
     va_start(args, format);
     vsnprintf(log_buf, sizeof(log_buf), format, args);
@@ -106,6 +116,8 @@ int svr_init(TAPPCTX *framework_ctx, void *user_data) {
     tglog_conf conf = {0};
     tglog_conf_set_default(&conf);
     conf.write_log = tglog_client_debug_log;
+    conf.batching_max_messages = 20;
+    conf.max_update_us = 150;
     tglog_network network = TGLOG_NETWORK_TCP;
     if (strcmp(g_app_context.app_cfg.szNetwork, "udp") == 0) {
         network = TGLOG_NETWORK_UDP;
@@ -121,6 +133,14 @@ int svr_init(TAPPCTX *framework_ctx, void *user_data) {
     g_app_context.sent_success_count = 0;
     g_app_context.sent_fail_count = 0;
     g_app_context.done = false;
+    g_app_context.log_count = 0;
+
+    // Initialize random seed
+    srand(time(NULL));
+
+    // Initialize log templates
+    init_log_templates(&g_app_context);
+
     gettimeofday(&g_app_context.start_time, NULL);
     return 0;
 }
@@ -134,7 +154,81 @@ int svr_stop(TAPPCTX *framework_ctx, void *user_data) {
     return -1;
 }
 
-char *g_log_to_send = "CarryOutItemFlow|/cnprod-a/36/settlementsvr/nanjing/11.176.45.170/1|2025-07-14 13:39:23|wx39308a0a1bd83d22|1|36|18182882159345025898|18182882159345025898|2340077323481036542|11090000053|1|648520772929162293|0|4|0.100|109|1|0|||0|0|||648530419497318933|2340077323481036542||\n";
+// Helper function to generate a log of approximately target_size bytes
+char* generate_log(int target_size) {
+    const char *base_log = "TGLogTappTestLog|/cnprod-a/36/settlementsvr/nanjing/11.176.45.170/1|2025-07-14 13:39:23|wx39308a0a1bd83d22|1|36|";
+    const char *padding_chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    int padding_chars_len = strlen(padding_chars);
+
+    char *log = (char*)malloc(target_size + 1);
+    if (log == NULL) {
+        return NULL;
+    }
+
+    int base_len = strlen(base_log);
+    strcpy(log, base_log);
+
+    // Fill the rest with padding to reach target size
+    int current_len = base_len;
+    while (current_len < target_size - 2) {  // Leave room for "|\n"
+        log[current_len] = padding_chars[rand() % padding_chars_len];
+        current_len++;
+    }
+
+    // End with "|\n"
+    log[current_len++] = '|';
+    log[current_len++] = '\n';
+    log[current_len] = '\0';
+
+    return log;
+}
+
+// Initialize log templates with different sizes
+void init_log_templates(APP_CONTEXT *app_ctx) {
+    int sizes[] = {250, 500, 1000, 2000, 4000, 8000, 16000, 32000, 48000, 63000};
+    app_ctx->log_count = 10;
+
+    for (int i = 0; i < app_ctx->log_count; i++) {
+        app_ctx->log_templates[i] = generate_log(sizes[i]);
+        if (app_ctx->log_templates[i] == NULL) {
+            printf("Failed to generate log template %d\n", i);
+        }
+    }
+}
+
+// Free log templates
+void free_log_templates(APP_CONTEXT *app_ctx) {
+    for (int i = 0; i < app_ctx->log_count; i++) {
+        if (app_ctx->log_templates[i] != NULL) {
+            free(app_ctx->log_templates[i]);
+            app_ctx->log_templates[i] = NULL;
+        }
+    }
+}
+
+// Get a random log from templates
+// 95% of logs are <= 4K, 5% are > 4K
+char* get_random_log(APP_CONTEXT *app_ctx) {
+    if (app_ctx->log_count == 0) {
+        return NULL;
+    }
+
+    // Generate a random number between 0-99
+    int random_percent = rand() % 100;
+
+    // 95% chance: select from logs <= 1K (indices 0-2: 250, 500, 1000)
+    // 5% chance: select from logs > 1K (indices 3-9: 2000, 4000, 8000, 16000, 32000, 48000, 63000)
+    int index;
+    if (random_percent < 95) {
+        // Select from first 3 templates (<=1K)
+        index = rand() % 3;
+    } else {
+        // Select from last 7 templates (>1K)
+        index = 3 + (rand() % 7);
+    }
+
+    return app_ctx->log_templates[index];
+}
 
 void tglog_callback(const char *payload, int err_code, const char *err_msg, void *user_data) {
     LPAPP_CONTEXT app_ctx = (LPAPP_CONTEXT) user_data;
@@ -163,13 +257,23 @@ int svr_proc(TAPPCTX *framework_ctx, void *user_data) {
     }
 
     for (int i = 0; i < app_ctx->app_cfg.iBatch; i++) {
+        char *log_to_send = get_random_log(app_ctx);
+        if (log_to_send == NULL) {
+            break;
+        }
+
         if (app_ctx->app_cfg.iUseTLog) {
-            tlog_error(app_ctx->tlog_client, 0, 0, "%s", g_log_to_send);
+            tlog_error(app_ctx->tlog_client, 0, 0, "%s", log_to_send);
             app_ctx->sent_count++;
             app_ctx->sent_success_count++;
         } else {
-            tglog_client_send(app_ctx->client, g_log_to_send, tglog_callback, user_data, TGLOG_MSG_F_COPY);
+            tglog_client_send(app_ctx->client, log_to_send, tglog_callback, user_data, TGLOG_MSG_F_COPY);
             app_ctx->sent_count++;
+            if (app_ctx->sent_count % 500000 == 0) {
+                char buf[4096];
+                tglog_client_print_metrics(app_ctx->client, buf, sizeof(buf), true);
+                tlog_info(app_ctx->app_debug_log, 0, 0, "%s", buf);
+            }
         }
 
         if (app_ctx->sent_count >= app_ctx->app_cfg.iCount) {
@@ -194,15 +298,9 @@ int svr_tick(TAPPCTX *framework_ctx, void *user_data) {
         return -1;
     }
 
-    // Update client every 5ms
+    // Update client every 5ms only for non-tlog mode, we set update interval to 5ms in start.sh with --timer=5
     if (!app_ctx->app_cfg.iUseTLog) {
         tglog_client_update(app_ctx->client);
-
-        if (app_ctx->sent_count % 500000 == 0) {
-            char buf[4096];
-            tglog_client_print_metrics(app_ctx->client, buf, sizeof(buf), true);
-            tlog_info(app_ctx->app_debug_log, 0, 0, "%s", buf);
-        }
     }
 
     if (app_ctx->sent_fail_count + app_ctx->sent_success_count >= app_ctx->app_cfg.iCount) {
@@ -215,6 +313,9 @@ int svr_tick(TAPPCTX *framework_ctx, void *user_data) {
 
         if (!app_ctx->app_cfg.iUseTLog) {
             char buf[8192];
+            tglog_client_print_metrics(app_ctx->client, buf, sizeof(buf), true);
+            tlog_info(app_ctx->app_debug_log, 0, 0, "%s", buf);
+
             tglog_client_print_mem_pool_stats(app_ctx->client, buf, sizeof(buf), false);
             tlog_info(app_ctx->app_debug_log, 0, 0, "%s", buf);
         }
