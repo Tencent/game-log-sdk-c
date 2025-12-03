@@ -3,7 +3,9 @@ tglog/*.o
 tglog/*.d
 tglog-st/*.o
 tglog-st/*.d
-lib
+lib/
+!test-tapp/tsf4g/lib/
+!test-tapp/tsf4g/lib/**
 test/tglog_test
 test/discoverer_test
 test/event_test
