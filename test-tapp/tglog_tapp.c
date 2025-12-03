@@ -116,8 +116,6 @@ int svr_init(TAPPCTX *framework_ctx, void *user_data) {
     tglog_conf conf = {0};
     tglog_conf_set_default(&conf);
     conf.write_log = tglog_client_debug_log;
-    conf.batching_max_messages = 20;
-    conf.max_update_us = 150;
     tglog_network network = TGLOG_NETWORK_TCP;
     if (strcmp(g_app_context.app_cfg.szNetwork, "udp") == 0) {
         network = TGLOG_NETWORK_UDP;
