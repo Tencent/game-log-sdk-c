@@ -29,6 +29,7 @@ public class TglogStats {
     private long closedConnCount;
     private long errorConnCount;
     private long eagainErrCount;
+    private long rescuedMsgBytes;
     
     // Endpoint statistics
     private long endpointCount;
@@ -48,9 +49,9 @@ public class TglogStats {
                      long succeededMsgCount, long failedMsgCount, long timeoutMsgCount,
                      long retryMsgCount, long droppedMsgCount, long openedConnCount,
                      long closedConnCount, long errorConnCount, long eagainErrCount,
-                     long endpointCount, long addEndpointCount, long removeEndpointCount,
-                     long msgQueueSize, long msgQueueCapacity, int workerCount, 
-                     TglogStats[] workerStats) {
+                     long rescuedMsgBytes, long endpointCount, long addEndpointCount,
+                     long removeEndpointCount, long msgQueueSize, long msgQueueCapacity,
+                     int workerCount, TglogStats[] workerStats) {
         this.requestMsgCount = requestMsgCount;
         this.enqueuedMsgCount = enqueuedMsgCount;
         this.dequeuedMsgCount = dequeuedMsgCount;
@@ -63,6 +64,7 @@ public class TglogStats {
         this.closedConnCount = closedConnCount;
         this.errorConnCount = errorConnCount;
         this.eagainErrCount = eagainErrCount;
+        this.rescuedMsgBytes = rescuedMsgBytes;
         this.endpointCount = endpointCount;
         this.addEndpointCount = addEndpointCount;
         this.removeEndpointCount = removeEndpointCount;
@@ -77,12 +79,13 @@ public class TglogStats {
                      long succeededMsgCount, long failedMsgCount, long timeoutMsgCount,
                      long retryMsgCount, long droppedMsgCount, long openedConnCount,
                      long closedConnCount, long errorConnCount, long eagainErrCount,
-                     long endpointCount, long addEndpointCount, long removeEndpointCount,
-                     long msgQueueSize, long msgQueueCapacity, int workerCount) {
+                     long rescuedMsgBytes, long endpointCount, long addEndpointCount,
+                     long removeEndpointCount, long msgQueueSize, long msgQueueCapacity,
+                     int workerCount) {
         this(requestMsgCount, enqueuedMsgCount, dequeuedMsgCount, succeededMsgCount,
              failedMsgCount, timeoutMsgCount, retryMsgCount, droppedMsgCount,
              openedConnCount, closedConnCount, errorConnCount, eagainErrCount,
-             endpointCount, addEndpointCount, removeEndpointCount,
+             rescuedMsgBytes, endpointCount, addEndpointCount, removeEndpointCount,
              msgQueueSize, msgQueueCapacity, workerCount, null);
     }
     
@@ -99,6 +102,7 @@ public class TglogStats {
     public long getClosedConnCount() { return closedConnCount; }
     public long getErrorConnCount() { return errorConnCount; }
     public long getEagainErrCount() { return eagainErrCount; }
+    public long getRescuedMsgBytes() { return rescuedMsgBytes; }
     public long getEndpointCount() { return endpointCount; }
     public long getAddEndpointCount() { return addEndpointCount; }
     public long getRemoveEndpointCount() { return removeEndpointCount; }

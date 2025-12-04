@@ -881,8 +881,8 @@ JNIEXPORT jobject JNICALL Java_TglogJNI_getStats(JNIEnv *env, jclass cls, jlong 
     // Create worker stats array if workers exist
     jobjectArray workerStatsArray = NULL;
     if (metrics->workers && metrics->worker_count > 0) {
-        // Worker constructor without worker array
-        jmethodID workerConstructor = (*env)->GetMethodID(env, statsClass, "<init>", "(JJJJJJJJJJJJJJJJJI)V");
+        // Worker constructor without worker array - updated to include rescuedMsgBytes
+        jmethodID workerConstructor = (*env)->GetMethodID(env, statsClass, "<init>", "(JJJJJJJJJJJJJJJJJJI)V");
         if (workerConstructor == NULL || (*env)->ExceptionCheck(env)) {
             if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
             (*env)->DeleteLocalRef(env, statsClass);
@@ -926,6 +926,8 @@ JNIEXPORT jobject JNICALL Java_TglogJNI_getStats(JNIEnv *env, jclass cls, jlong 
                                                         (jlong)
                                                                 ck_pr_load_64(&worker->eagain_err_count),
                                                         (jlong)
+                                                                ck_pr_load_64(&worker->rescued_msg_bytes),
+                                                        (jlong)
                                                                 ck_pr_load_64(&worker->endpoint_count),
                                                         (jlong)
                                                                 ck_pr_load_64(&worker->add_endpoint_count),
@@ -950,8 +952,8 @@ JNIEXPORT jobject JNICALL Java_TglogJNI_getStats(JNIEnv *env, jclass cls, jlong 
         }
     }
 
-    // Get main constructor with worker stats array
-    jmethodID constructor = (*env)->GetMethodID(env, statsClass, "<init>", "(JJJJJJJJJJJJJJJJJI[LTglogStats;)V");
+    // Get main constructor with worker stats array - updated to include rescuedMsgBytes
+    jmethodID constructor = (*env)->GetMethodID(env, statsClass, "<init>", "(JJJJJJJJJJJJJJJJJJI[LTglogStats;)V");
     if (constructor == NULL || (*env)->ExceptionCheck(env)) {
         if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
         if (workerStatsArray) (*env)->DeleteLocalRef(env, workerStatsArray);
@@ -985,6 +987,8 @@ JNIEXPORT jobject JNICALL Java_TglogJNI_getStats(JNIEnv *env, jclass cls, jlong 
                                                ck_pr_load_64(&metrics->error_conn_count),
                                        (jlong)
                                                ck_pr_load_64(&metrics->eagain_err_count),
+                                       (jlong)
+                                               ck_pr_load_64(&metrics->rescued_msg_bytes),
                                        (jlong)
                                                ck_pr_load_64(&metrics->endpoint_count),
                                        (jlong)
