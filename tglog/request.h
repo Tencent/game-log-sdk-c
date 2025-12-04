@@ -12,6 +12,7 @@
 #include "ck_stack.h"
 
 /* Project headers */
+#include "def.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,7 +34,7 @@ typedef struct tglog_message {
     void *user_data;                    /* user data to pass to the callback */
     tglog_metrics *metrics;             /* metrics for the message */
     int worker_id;                      /* id of the worker that created the message */
-    char flag;                         /* message flags */
+    tglog_msg_flag flag;                /* message flags */
     tglog_payload_pool *payload_pool;   /* payload pool */
     tglog_message_pool *pool;           /* message pool */
     ck_stack_entry_t stack_entry;       /* stack entry */
@@ -53,7 +54,9 @@ CK_RING_PROTOTYPE(msg_queue, tglog_message*);
  * @param worker_id The id of the worker that created the message.
  * @return A message or NULL on errors.
  */
-tglog_message *tglog_message_create(tglog_mem_pool *mem_pool, const char *payload, size_t len, tglog_msg_callback callback, void *user_data, char flag, tglog_metrics *metrics, int worker_id);
+tglog_message *tglog_message_create(tglog_mem_pool *mem_pool, const char *payload, size_t len,
+                                    tglog_msg_callback callback, void *user_data,
+                                    tglog_msg_flag flag, tglog_metrics *metrics, int worker_id);
 
 /**
  * Get the length of a message.

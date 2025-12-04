@@ -2212,7 +2212,7 @@ void tglog_worker_destroy(tglog_worker *worker) {
     free(worker);
 }
 
-int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_callback callback, void *user_data, char msg_flag) {
+int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_callback callback, void *user_data, tglog_msg_flag msg_flag) {
     tglog_debug(worker->logger, "Worker: %d", worker->id);
 
     tglog_metrics_inc_request_msg_count(worker->metrics, 1);

@@ -160,7 +160,7 @@ static tglog_worker *tglog_client_get_worker(tglog_client *client) {
     return client->worker;
 }
 
-int tglog_client_send(tglog_client *client, const char *log_payload, tglog_send_callback callback, void *user_data, char msg_flag) {
+int tglog_client_send(tglog_client *client, const char *log_payload, tglog_send_callback callback, void *user_data, tglog_msg_flag msg_flag) {
     if (!log_payload) {
         if (callback) {
             callback(log_payload, TGLOG_ERR_BAD_LOG, "Payload is NULL", user_data);

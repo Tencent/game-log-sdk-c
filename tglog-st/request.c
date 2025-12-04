@@ -7,14 +7,15 @@
 
 /* Project headers */
 #include "request.h"
-#include "def.h"
 #include "endpoint.h"
 #include "err.h"
 #include "metrics.h"
 #include "pool.h"
 
 
-tglog_message *tglog_message_create(tglog_mem_pool *mem_pool, const char *payload, size_t len, tglog_msg_callback callback, void *user_data, char flag, tglog_metrics *metrics, int worker_id) {
+tglog_message *tglog_message_create(tglog_mem_pool *mem_pool, const char *payload, size_t len,
+                                    tglog_msg_callback callback, void *user_data,
+                                    tglog_msg_flag flag, tglog_metrics *metrics, int worker_id) {
     if (!payload || len <= 0) {
         return NULL;
     }

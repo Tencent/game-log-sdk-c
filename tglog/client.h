@@ -10,6 +10,7 @@
 
 /* Project headers */
 #include "conf.h"
+#include "def.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -82,7 +83,7 @@ typedef void (*tglog_send_callback)(const char *log_payload, int err_code, const
  *  TGLOG_MSG_F_COPY: The client will copy the log_payload before sending, you can free it yourself after the call.
  * @return 0 on success, others on error, see def.h to reference the error codes.
  */
-int tglog_client_send(tglog_client *client, const char *log_payload, tglog_send_callback callback, void *user_data, char msg_flag);
+int tglog_client_send(tglog_client *client, const char *log_payload, tglog_send_callback callback, void *user_data, tglog_msg_flag msg_flag);
 
 /**
  * Get the size of the message queue.
