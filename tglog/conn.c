@@ -13,12 +13,14 @@
 
 tglog_conn *tglog_conn_create(tglog_worker *worker, tglog_conn_create_type create_type, tglog_network network, const char *endpoint,
                               evutil_socket_t fd, struct bufferevent *bev, void *user_data,
-                              int write_high_watermark) {
+                              int write_high_watermark, int max_lifetime) {
     tglog_conn *conn = (tglog_conn *) calloc(1, sizeof(tglog_conn));
     if (!conn) {
         return NULL;
     }
 
+    int max_jitter = max_lifetime / 10;
+    max_jitter = max_jitter > 20 ? (max_jitter > 30 ? 30 : max_jitter) : 20; // 20 ~ 30
     /* Initialize connection */
     conn->worker = worker;
     conn->create_type = create_type;
@@ -27,7 +29,8 @@ tglog_conn *tglog_conn_create(tglog_worker *worker, tglog_conn_create_type creat
     conn->fd = fd;
     conn->bev = bev;
     conn->user_data = user_data;
-    conn->create_time = time(NULL);
+    int jitter = rand() % max_jitter; // 0 ~ max_jitter-1
+    conn->expire_time = time(NULL) + max_lifetime + jitter;
     conn->write_high_watermark = write_high_watermark > 0 ? write_high_watermark : TGLOG_DEFAULT_WRITE_HIGH_WATERMARK;
     return conn;
 }

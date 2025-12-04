@@ -681,7 +681,8 @@ static tglog_conn *tglog_worker_dial_new_conn(tglog_worker *worker, char *addr, 
     bufferevent_set_timeouts(bev, &tv, NULL);
 
     /* Create connection object */
-    tglog_conn *conn = tglog_conn_create(worker, create_type, worker->client->conf.network, addr, sock, bev, user_data, worker->client->conf.write_high_watermark);
+    tglog_conn *conn = tglog_conn_create(worker, create_type, worker->client->conf.network, addr, sock, bev, user_data,
+                                         worker->client->conf.write_high_watermark, worker->client->conf.max_conn_lifetime);
     if (!conn) {
         bufferevent_free(bev);
         evutil_closesocket(sock);
@@ -842,7 +843,7 @@ static bool tglog_worker_is_conn_expired(tglog_worker *worker, tglog_conn *conn)
         return false;
     }
 
-    return conn->create_time + worker->client->conf.max_conn_lifetime < time(NULL);
+    return conn->expire_time < time(NULL);
 }
 
 static void tglog_worker_replace_expired_conns(evutil_socket_t fd, short what, void *user_data) {
@@ -1846,7 +1847,9 @@ tglog_worker *tglog_worker_create(int id, tglog_client *client) {
 
     /* Init replace expired connections timer if needed */
     if (worker->client->conf.max_conn_lifetime > 0) {
-        interval.tv_sec = worker->client->conf.max_conn_lifetime;
+        int interval_sec = worker->client->conf.max_conn_lifetime / 10;
+        interval_sec = interval_sec > 20 ? 20 : (interval_sec > 0 ? interval_sec : 10);// at most 20s
+        interval.tv_sec = interval_sec;
         interval.tv_usec = 0;
         worker->replace_conns_event = event_new(worker->base, -1, EV_TIMEOUT | EV_PERSIST, tglog_worker_replace_expired_conns, worker);
         if (worker->replace_conns_event) {

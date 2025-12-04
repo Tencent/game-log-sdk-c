@@ -273,7 +273,7 @@ void tglog_metrics_set_worker_msg_queue_capacity(tglog_metrics *metrics, int wor
  * @param size The size of the buffer.
  * @return The length of the JSON string, or -1 on error.
  */
-int tglog_metrics_print(tglog_metrics *metrics, char* buffer, size_t size);
+int tglog_metrics_print(tglog_metrics *metrics, char *buffer, size_t size);
 
 /**
  * Print the metrics in JSON format.
@@ -283,7 +283,7 @@ int tglog_metrics_print(tglog_metrics *metrics, char* buffer, size_t size);
  * @param size The size of the buffer.
  * @return The length of the JSON string, or -1 on error.
  */
-int tglog_metrics_print_json(tglog_metrics *metrics, char* buffer, size_t size);
+int tglog_metrics_print_json(tglog_metrics *metrics, char *buffer, size_t size);
 
 #ifdef __cplusplus
 }

@@ -169,7 +169,7 @@ int tglog_client_send(tglog_client *client, const char *log_payload, tglog_send_
     }
 
     if (msg_flag < TGLOG_MSG_F_NONE || msg_flag > TGLOG_MSG_F_COPY) {
-        if (callback){
+        if (callback) {
             callback(log_payload, TGLOG_ERR_BAD_FLAG, "Message flag is invalid", user_data);
         }
         return TGLOG_ERR_BAD_FLAG;

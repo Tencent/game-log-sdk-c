@@ -363,7 +363,7 @@ int tglog_mem_pool_stats_print(tglog_mem_pool_stats *stats, char *buffer, size_t
     }
     offset += n;
 
-    return (int)offset;
+    return (int) offset;
 }
 
 int tglog_mem_pool_stats_print_json(tglog_mem_pool_stats *stats, char *buffer, size_t size) {

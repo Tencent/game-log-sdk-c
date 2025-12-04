@@ -35,7 +35,7 @@ typedef struct tglog_conn {
     struct event *close_event;          /* delay close timer event */
     void *user_data;                    /* user data */
     struct evbuffer *pending_data;      /* pending data to rescue */
-    time_t create_time;                 /* create time */
+    time_t expire_time;                 /* expire time */
     int write_high_watermark;           /* write high watermark */
 } tglog_conn;
 
@@ -56,11 +56,12 @@ typedef struct tglog_conn_list {
  * @param bev The buffered event.
  * @param user_data The user data.
  * @param write_high_watermark The write high watermark.
+ * @param max_lifetime The max lifetime.
  * @return The conn.
  */
 tglog_conn *tglog_conn_create(tglog_worker *worker, tglog_conn_create_type create_type, tglog_network network, const char *endpoint,
                               evutil_socket_t fd, struct bufferevent *bev, void *user_data,
-                              int write_high_watermark);
+                              int write_high_watermark, int max_lifetime);
 
 /**
  * Send data to a conn.
@@ -233,7 +234,7 @@ bool tglog_conn_list_remove_by_addr(tglog_conn_list *list, char *addr);
  * @param addr The address.
  * @return The number of conns.
  */
-int tglog_conn_list_get_count_by_addr(tglog_conn_list *list, char* addr);
+int tglog_conn_list_get_count_by_addr(tglog_conn_list *list, char *addr);
 
 /**
  * Destroy a conn list.

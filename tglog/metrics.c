@@ -143,8 +143,8 @@ void tglog_metrics_inc_eagain_err_count(tglog_metrics *metrics, int worker_id, i
 
 void tglog_metrics_inc_rescued_msg_bytes(tglog_metrics *metrics, int worker_id, size_t bytes) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
-        atomic_increment(&metrics->workers[worker_id]->rescued_msg_bytes, (int)bytes);
-        atomic_increment(&metrics->rescued_msg_bytes, (int)bytes);
+        atomic_increment(&metrics->workers[worker_id]->rescued_msg_bytes, (int) bytes);
+        atomic_increment(&metrics->rescued_msg_bytes, (int) bytes);
     }
 }
 
@@ -316,7 +316,7 @@ int tglog_metrics_print(tglog_metrics *metrics, char *buffer, size_t size) {
     /* Calculate queue usage percentage */
     double queue_usage = 0.0;
     if (msg_queue_capacity > 0) {
-        queue_usage = (double) msg_queue_size / (double)msg_queue_capacity * 100.0;
+        queue_usage = (double) msg_queue_size / (double) msg_queue_capacity * 100.0;
     }
     n = snprintf(buffer + offset, size - offset,
                  "  Usage:            %.2f%%\n",
@@ -413,7 +413,7 @@ int tglog_metrics_print(tglog_metrics *metrics, char *buffer, size_t size) {
 
         double w_queue_usage = 0.0;
         if (w_msg_queue_capacity > 0) {
-            w_queue_usage = (double) w_msg_queue_size / (double)w_msg_queue_capacity * 100.0;
+            w_queue_usage = (double) w_msg_queue_size / (double) w_msg_queue_capacity * 100.0;
         }
         n = snprintf(buffer + offset, size - offset,
                      "  Usage:            %.2f%%\n",
