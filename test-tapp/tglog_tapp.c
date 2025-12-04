@@ -38,10 +38,13 @@ TAPPCTX g_framework_context;
 APP_CONTEXT g_app_context;
 
 // Forward declarations
-char* generate_log(int target_size);
+char *generate_log(int target_size);
+
 void init_log_templates(APP_CONTEXT *app_ctx);
+
 void free_log_templates(APP_CONTEXT *app_ctx);
-char* get_random_log(APP_CONTEXT *app_ctx);
+
+char *get_random_log(APP_CONTEXT *app_ctx);
 
 void uninit_app_context() {
     free_log_templates(&g_app_context);
@@ -153,12 +156,12 @@ int svr_stop(TAPPCTX *framework_ctx, void *user_data) {
 }
 
 // Helper function to generate a log of approximately target_size bytes
-char* generate_log(int target_size) {
+char *generate_log(int target_size) {
     const char *base_log = "TGLogTappTestLog|/cnprod-a/36/settlementsvr/nanjing/11.176.45.170/1|2025-07-14 13:39:23|wx39308a0a1bd83d22|1|36|";
     const char *padding_chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
     int padding_chars_len = strlen(padding_chars);
 
-    char *log = (char*)malloc(target_size + 1);
+    char *log = (char *) malloc(target_size + 1);
     if (log == NULL) {
         return NULL;
     }
@@ -206,7 +209,7 @@ void free_log_templates(APP_CONTEXT *app_ctx) {
 
 // Get a random log from templates
 // 95% of logs are <= 4K, 5% are > 4K
-char* get_random_log(APP_CONTEXT *app_ctx) {
+char *get_random_log(APP_CONTEXT *app_ctx) {
     if (app_ctx->log_count == 0) {
         return NULL;
     }
@@ -293,11 +296,15 @@ int svr_tick(TAPPCTX *framework_ctx, void *user_data) {
     }
 
     if (app_ctx->done) {
+        // Update client every 5ms only for non-tlog mode, we set update interval to 5ms in start.sh with --timer=5
+        if (app_ctx->client) {
+            tglog_client_update(app_ctx->client);
+        }
         return -1;
     }
 
     // Update client every 5ms only for non-tlog mode, we set update interval to 5ms in start.sh with --timer=5
-    if (!app_ctx->app_cfg.iUseTLog) {
+    if (app_ctx->client) {
         tglog_client_update(app_ctx->client);
     }
 
