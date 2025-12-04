@@ -32,6 +32,7 @@ typedef struct tglog_metrics {
     uint64_t retry_msg_count;                       /* retry message count, count every retry */
     uint64_t dropped_msg_count;                     /* dropped message count, request but not enqueued */
     uint64_t eagain_err_count;                      /* EAGAIN error count */
+    uint64_t rescued_msg_bytes;                     /* rescued message bytes */
     uint64_t opened_conn_count;                     /* opened connection count */
     uint64_t closed_conn_count;                     /* closed connection count */
     uint64_t error_conn_count;                      /* error connection count */
@@ -135,6 +136,14 @@ void tglog_metrics_inc_dropped_msg_count(tglog_metrics *metrics, int count);
  * @param count The count to increment.
  */
 void tglog_metrics_inc_eagain_err_count(tglog_metrics *metrics, int count);
+
+/**
+ * Increment the rescued message bytes.
+ *
+ * @param metrics The metrics instance.
+ * @param bytes The bytes to increment.
+ */
+void tglog_metrics_inc_rescued_msg_bytes(tglog_metrics *metrics, size_t bytes);
 
 /**
  * Increment the opened connection count.

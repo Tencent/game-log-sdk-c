@@ -246,6 +246,7 @@ static bool tglog_worker_rescue_pending_data(tglog_worker *worker, tglog_conn *c
     }
 
     tglog_info(worker->logger, "Rescue pending data, worker: %d, len: %zu", worker->id, len);
+    tglog_metrics_inc_rescued_msg_bytes(worker->metrics, worker->id, len);
     return true;
 }
 

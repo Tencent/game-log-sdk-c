@@ -141,6 +141,13 @@ void tglog_metrics_inc_eagain_err_count(tglog_metrics *metrics, int worker_id, i
     }
 }
 
+void tglog_metrics_inc_rescued_msg_bytes(tglog_metrics *metrics, int worker_id, size_t bytes) {
+    if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
+        atomic_increment(&metrics->workers[worker_id]->rescued_msg_bytes, (int)bytes);
+        atomic_increment(&metrics->rescued_msg_bytes, (int)bytes);
+    }
+}
+
 void tglog_metrics_inc_opened_conn_count(tglog_metrics *metrics, int worker_id, int count) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
         atomic_increment(&metrics->workers[worker_id]->opened_conn_count, count);
@@ -230,6 +237,7 @@ int tglog_metrics_print(tglog_metrics *metrics, char *buffer, size_t size) {
     uint64_t retry_msg_count = ck_pr_load_64(&metrics->retry_msg_count);
     uint64_t dropped_msg_count = ck_pr_load_64(&metrics->dropped_msg_count);
     uint64_t eagain_err_count = ck_pr_load_64(&metrics->eagain_err_count);
+    uint64_t rescued_msg_bytes = ck_pr_load_64(&metrics->rescued_msg_bytes);
     uint64_t opened_conn_count = ck_pr_load_64(&metrics->opened_conn_count);
     uint64_t closed_conn_count = ck_pr_load_64(&metrics->closed_conn_count);
     uint64_t error_conn_count = ck_pr_load_64(&metrics->error_conn_count);
@@ -256,7 +264,8 @@ int tglog_metrics_print(tglog_metrics *metrics, char *buffer, size_t size) {
                  "  Timeout Count:    %"PRIu64"\n"
                  "  Retry Count:      %"PRIu64"\n"
                  "  Dropped Count:    %"PRIu64"\n"
-                 "  EAGAIN Errors:    %"PRIu64"\n",
+                 "  EAGAIN Errors:    %"PRIu64"\n"
+                 "  Rescued Bytes:     %"PRIu64"\n",
                  request_msg_count,
                  enqueued_msg_count,
                  dequeued_msg_count,
@@ -265,7 +274,8 @@ int tglog_metrics_print(tglog_metrics *metrics, char *buffer, size_t size) {
                  timeout_msg_count,
                  retry_msg_count,
                  dropped_msg_count,
-                 eagain_err_count);
+                 eagain_err_count,
+                 rescued_msg_bytes);
     if (n < 0 || offset + n >= size) return -1;
     offset += n;
 
@@ -330,6 +340,7 @@ int tglog_metrics_print(tglog_metrics *metrics, char *buffer, size_t size) {
         uint64_t w_retry_msg_count = ck_pr_load_64(&worker->retry_msg_count);
         uint64_t w_dropped_msg_count = ck_pr_load_64(&worker->dropped_msg_count);
         uint64_t w_eagain_err_count = ck_pr_load_64(&worker->eagain_err_count);
+        uint64_t w_rescued_msg_bytes = ck_pr_load_64(&worker->rescued_msg_bytes);
         uint64_t w_opened_conn_count = ck_pr_load_64(&worker->opened_conn_count);
         uint64_t w_closed_conn_count = ck_pr_load_64(&worker->closed_conn_count);
         uint64_t w_error_conn_count = ck_pr_load_64(&worker->error_conn_count);
@@ -354,7 +365,8 @@ int tglog_metrics_print(tglog_metrics *metrics, char *buffer, size_t size) {
                      "  Timeout Count:    %"PRIu64"\n"
                      "  Retry Count:      %"PRIu64"\n"
                      "  Dropped Count:    %"PRIu64"\n"
-                     "  EAGAIN Errors:    %"PRIu64"\n",
+                     "  EAGAIN Errors:    %"PRIu64"\n"
+                     "  Rescued Bytes:    %"PRIu64"\n",
                      w_request_msg_count,
                      w_enqueued_msg_count,
                      w_dequeued_msg_count,
@@ -363,7 +375,8 @@ int tglog_metrics_print(tglog_metrics *metrics, char *buffer, size_t size) {
                      w_timeout_msg_count,
                      w_retry_msg_count,
                      w_dropped_msg_count,
-                     w_eagain_err_count);
+                     w_eagain_err_count,
+                     w_rescued_msg_bytes);
         if (n < 0 || offset + n >= size) return -1;
         offset += n;
 
@@ -430,6 +443,7 @@ int tglog_metrics_print_json(tglog_metrics *metrics, char *buffer, size_t size) 
     uint64_t retry_msg_count = ck_pr_load_64(&metrics->retry_msg_count);
     uint64_t dropped_msg_count = ck_pr_load_64(&metrics->dropped_msg_count);
     uint64_t eagain_err_count = ck_pr_load_64(&metrics->eagain_err_count);
+    uint64_t rescued_msg_bytes = ck_pr_load_64(&metrics->rescued_msg_bytes);
     uint64_t opened_conn_count = ck_pr_load_64(&metrics->opened_conn_count);
     uint64_t closed_conn_count = ck_pr_load_64(&metrics->closed_conn_count);
     uint64_t error_conn_count = ck_pr_load_64(&metrics->error_conn_count);
@@ -478,6 +492,10 @@ int tglog_metrics_print_json(tglog_metrics *metrics, char *buffer, size_t size) 
     offset += n;
 
     n = snprintf(buffer + offset, size - offset, "  \"eagain_err_count\": %"PRIu64",\n", eagain_err_count);
+    if (n < 0 || offset + n >= size) return -1;
+    offset += n;
+
+    n = snprintf(buffer + offset, size - offset, "  \"rescued_msg_bytes\": %"PRIu64",\n", rescued_msg_bytes);
     if (n < 0 || offset + n >= size) return -1;
     offset += n;
 
@@ -533,6 +551,7 @@ int tglog_metrics_print_json(tglog_metrics *metrics, char *buffer, size_t size) 
         uint64_t w_retry_msg_count = ck_pr_load_64(&worker->retry_msg_count);
         uint64_t w_dropped_msg_count = ck_pr_load_64(&worker->dropped_msg_count);
         uint64_t w_eagain_err_count = ck_pr_load_64(&worker->eagain_err_count);
+        uint64_t w_rescued_msg_bytes = ck_pr_load_64(&worker->rescued_msg_bytes);
         uint64_t w_opened_conn_count = ck_pr_load_64(&worker->opened_conn_count);
         uint64_t w_closed_conn_count = ck_pr_load_64(&worker->closed_conn_count);
         uint64_t w_error_conn_count = ck_pr_load_64(&worker->error_conn_count);
@@ -580,6 +599,10 @@ int tglog_metrics_print_json(tglog_metrics *metrics, char *buffer, size_t size) 
         offset += n;
 
         n = snprintf(buffer + offset, size - offset, "      \"eagain_err_count\": %"PRIu64",\n", w_eagain_err_count);
+        if (n < 0 || offset + n >= size) return -1;
+        offset += n;
+
+        n = snprintf(buffer + offset, size - offset, "      \"rescued_msg_bytes\": %"PRIu64",\n", w_rescued_msg_bytes);
         if (n < 0 || offset + n >= size) return -1;
         offset += n;
 

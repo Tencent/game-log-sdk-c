@@ -77,6 +77,12 @@ void tglog_metrics_inc_eagain_err_count(tglog_metrics *metrics, int count) {
     }
 }
 
+void tglog_metrics_inc_rescued_msg_bytes(tglog_metrics *metrics, size_t bytes) {
+    if (metrics) {
+        metrics->rescued_msg_bytes += bytes;
+    }
+}
+
 void tglog_metrics_inc_opened_conn_count(tglog_metrics *metrics, int count) {
     if (metrics) {
         metrics->opened_conn_count += count;
@@ -151,7 +157,7 @@ void tglog_metrics_set_max_update_time(tglog_metrics *metrics, uint64_t time) {
     }
 }
 
-void tglog_metrics_set_limit_update_time(tglog_metrics *metrics, uint64_t time){
+void tglog_metrics_set_limit_update_time(tglog_metrics *metrics, uint64_t time) {
     if (metrics) {
         metrics->limit_update_time_us = time;
     }
@@ -209,7 +215,8 @@ int tglog_metrics_print(tglog_metrics *metrics, char *buffer, size_t size) {
                  "  Timeout Count:    %llu\n"
                  "  Retry Count:      %llu\n"
                  "  Dropped Count:    %llu\n"
-                 "  EAGAIN Errors:    %llu\n",
+                 "  EAGAIN Errors:    %llu\n"
+                 "  Rescued Bytes:    %llu\n",
                  (unsigned long long) metrics->request_msg_count,
                  (unsigned long long) metrics->enqueued_msg_count,
                  (unsigned long long) metrics->dequeued_msg_count,
@@ -218,7 +225,8 @@ int tglog_metrics_print(tglog_metrics *metrics, char *buffer, size_t size) {
                  (unsigned long long) metrics->timeout_msg_count,
                  (unsigned long long) metrics->retry_msg_count,
                  (unsigned long long) metrics->dropped_msg_count,
-                 (unsigned long long) metrics->eagain_err_count);
+                 (unsigned long long) metrics->eagain_err_count,
+                 (unsigned long long) metrics->rescued_msg_bytes);
 
     if (n < 0 || offset + n >= size) {
         return -1;
@@ -308,10 +316,10 @@ int tglog_metrics_print(tglog_metrics *metrics, char *buffer, size_t size) {
     }
     offset += n;
 
-    return (int)offset;
+    return (int) offset;
 }
 
-int tglog_metrics_print_json(tglog_metrics *metrics, char* buffer, size_t size) {
+int tglog_metrics_print_json(tglog_metrics *metrics, char *buffer, size_t size) {
     if (!metrics || !buffer || size == 0) {
         return -1;
     }
@@ -327,6 +335,7 @@ int tglog_metrics_print_json(tglog_metrics *metrics, char* buffer, size_t size) 
                      "  \"retry_msg_count\": %llu,\n"
                      "  \"dropped_msg_count\": %llu,\n"
                      "  \"eagain_err_count\": %llu,\n"
+                     "  \"rescued_msg_bytes\": %llu,\n"
                      "  \"opened_conn_count\": %llu,\n"
                      "  \"closed_conn_count\": %llu,\n"
                      "  \"error_conn_count\": %llu,\n"
@@ -353,6 +362,7 @@ int tglog_metrics_print_json(tglog_metrics *metrics, char* buffer, size_t size) 
                      (unsigned long long) metrics->retry_msg_count,
                      (unsigned long long) metrics->dropped_msg_count,
                      (unsigned long long) metrics->eagain_err_count,
+                     (unsigned long long) metrics->rescued_msg_bytes,
                      (unsigned long long) metrics->opened_conn_count,
                      (unsigned long long) metrics->closed_conn_count,
                      (unsigned long long) metrics->error_conn_count,
