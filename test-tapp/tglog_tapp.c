@@ -4,13 +4,10 @@
 
 #include "pal/pal.h"
 #include "tdr/tdr.h"
-#include "tbus/tbus.h"
 #include "tapp/tapp.h"
 #include "tlog/tlog.h"
-#include "tloghelp/tlogload.h"
 
 #include "tglog_tapp_def.h"
-
 #include "tglog.h"
 
 extern unsigned char g_szMetalib_TestTappLib[];
@@ -27,8 +24,11 @@ struct app_context {
     int sent_fail_count;
     struct timeval start_time;
     bool done;
-    char *log_templates[10];  // Store 10 different size logs
+    char *log_templates[10];            // Store 10 different size logs
     int log_count;
+    long max_large_log_send_time_us;    // Maximum send time for large logs (>=16K) in microseconds
+    int large_log_count;                // Count of large logs sent (>=16K)
+    int max_log_size;                   // Maximum log size
 };
 
 typedef struct app_context APP_CONTEXT;
@@ -44,11 +44,7 @@ void init_log_templates(APP_CONTEXT *app_ctx);
 
 void free_log_templates(APP_CONTEXT *app_ctx);
 
-char *get_random_log(APP_CONTEXT *app_ctx);
-
-void uninit_app_context() {
-    free_log_templates(&g_app_context);
-}
+char *get_random_log(APP_CONTEXT *app_ctx, int *log_size);
 
 void write_login_log(unsigned long long roleId, int roleLevel) {
 
@@ -101,40 +97,48 @@ void tglog_client_debug_log(void *user_data, tglog_level level, const char *file
 }
 
 int svr_init(TAPPCTX *framework_ctx, void *user_data) {
-    strcpy(g_app_context.app_id, tdr_tdrip_to_ineta(framework_ctx->iId));
-    memcpy(&g_app_context.app_cfg, (LPTESTTAPPCFG) framework_ctx->stConfData.pszBuff, sizeof(g_app_context.app_cfg));
+    LPAPP_CONTEXT app_ctx = (LPAPP_CONTEXT) user_data;
+    strcpy(app_ctx->app_id, tdr_tdrip_to_ineta(framework_ctx->iId));
+    memcpy(&app_ctx->app_cfg, (LPTESTTAPPCFG) framework_ctx->stConfData.pszBuff, sizeof(app_ctx->app_cfg));
 
-    tapp_get_category("tglog_tapp_debug", &g_app_context.app_debug_log);
-    if (g_app_context.app_debug_log == NULL) {
+    tapp_get_category("tglog_tapp_debug", &app_ctx->app_debug_log);
+    if (app_ctx->app_debug_log == NULL) {
         printf("get tglog_tapp_debug category failed\n");
         return -1;
     }
 
-    tapp_get_category("tglog_tapp_net", &g_app_context.tlog_client);
-    if (g_app_context.tlog_client == NULL) {
-        printf("get tglog_tapp_net category failed\n");
-        return -2;
+    tlog_info(app_ctx->app_debug_log, 0, 0, "tglog tapp test start");
+
+    if (app_ctx->app_cfg.iUseTLog) {
+        tapp_get_category("tglog_tapp_net", &app_ctx->tlog_client);
+        if (app_ctx->tlog_client == NULL) {
+            printf("get tglog_tapp_net category failed\n");
+            return -2;
+        }
+    } else {
+        tglog_conf conf = {0};
+        tglog_conf_set_default(&conf);
+        conf.write_log = tglog_client_debug_log;
+        tglog_network network = TGLOG_NETWORK_TCP;
+        if (strcmp(app_ctx->app_cfg.szNetwork, "udp") == 0) {
+            network = TGLOG_NETWORK_UDP;
+        }
+
+        tglog_conf_set_server(&conf, network, app_ctx->app_cfg.szServer, app_ctx->app_cfg.iPort);
+        app_ctx->client = tglog_client_create(&conf);
+        if (app_ctx->client == NULL) {
+            return -3;
+        }
     }
 
-    tglog_conf conf = {0};
-    tglog_conf_set_default(&conf);
-    conf.write_log = tglog_client_debug_log;
-    tglog_network network = TGLOG_NETWORK_TCP;
-    if (strcmp(g_app_context.app_cfg.szNetwork, "udp") == 0) {
-        network = TGLOG_NETWORK_UDP;
-    }
-
-    tglog_conf_set_server(&conf, network, g_app_context.app_cfg.szServer, g_app_context.app_cfg.iPort);
-    g_app_context.client = tglog_client_create(&conf);
-    if (g_app_context.client == NULL) {
-        return -1;
-    }
-
-    g_app_context.sent_count = 0;
-    g_app_context.sent_success_count = 0;
-    g_app_context.sent_fail_count = 0;
-    g_app_context.done = false;
-    g_app_context.log_count = 0;
+    app_ctx->sent_count = 0;
+    app_ctx->sent_success_count = 0;
+    app_ctx->sent_fail_count = 0;
+    app_ctx->done = false;
+    app_ctx->log_count = 0;
+    app_ctx->max_large_log_send_time_us = 0;
+    app_ctx->large_log_count = 0;
+    app_ctx->max_log_size = 0;
 
     // Initialize random seed
     srand(time(NULL));
@@ -142,12 +146,16 @@ int svr_init(TAPPCTX *framework_ctx, void *user_data) {
     // Initialize log templates
     init_log_templates(&g_app_context);
 
-    gettimeofday(&g_app_context.start_time, NULL);
+    gettimeofday(&app_ctx->start_time, NULL);
     return 0;
 }
 
 int svr_fini(TAPPCTX *framework_ctx, void *user_data) {
-    uninit_app_context();
+    LPAPP_CONTEXT app_ctx = (LPAPP_CONTEXT) user_data;
+    if (app_ctx->client) {
+        tglog_client_destroy(app_ctx->client);
+    }
+    free_log_templates(app_ctx);
     return -1;
 }
 
@@ -184,13 +192,14 @@ char *generate_log(int target_size) {
     return log;
 }
 
+static int g_sizes[] = {250, 500, 1000, 2000, 4000, 8000, 16000, 32000, 48000, 63000};
+
 // Initialize log templates with different sizes
 void init_log_templates(APP_CONTEXT *app_ctx) {
-    int sizes[] = {250, 500, 1000, 2000, 4000, 8000, 16000, 32000, 48000, 63000};
     app_ctx->log_count = 10;
 
     for (int i = 0; i < app_ctx->log_count; i++) {
-        app_ctx->log_templates[i] = generate_log(sizes[i]);
+        app_ctx->log_templates[i] = generate_log(g_sizes[i]);
         if (app_ctx->log_templates[i] == NULL) {
             printf("Failed to generate log template %d\n", i);
         }
@@ -208,8 +217,8 @@ void free_log_templates(APP_CONTEXT *app_ctx) {
 }
 
 // Get a random log from templates
-// 95% of logs are <= 4K, 5% are > 4K
-char *get_random_log(APP_CONTEXT *app_ctx) {
+// 95% of logs are <= 1K, 5% are > 1K
+char *get_random_log(APP_CONTEXT *app_ctx, int *log_size) {
     if (app_ctx->log_count == 0) {
         return NULL;
     }
@@ -228,6 +237,7 @@ char *get_random_log(APP_CONTEXT *app_ctx) {
         index = 3 + (rand() % 7);
     }
 
+    *log_size = g_sizes[index];
     return app_ctx->log_templates[index];
 }
 
@@ -248,8 +258,14 @@ void tglog_callback(const char *payload, int err_code, const char *err_msg, void
 int svr_proc(TAPPCTX *framework_ctx, void *user_data) {
     LPAPP_CONTEXT app_ctx = (LPAPP_CONTEXT) user_data;
 
-    if (app_ctx->client == NULL || app_ctx->tlog_client == NULL) {
-        return -1;
+    if (app_ctx->app_cfg.iUseTLog) {
+        if (app_ctx->tlog_client == NULL) {
+            return -1;
+        }
+    } else {
+        if (app_ctx->client == NULL) {
+            return -1;
+        }
     }
 
     if (app_ctx->sent_count >= app_ctx->app_cfg.iCount) {
@@ -258,19 +274,56 @@ int svr_proc(TAPPCTX *framework_ctx, void *user_data) {
     }
 
     for (int i = 0; i < app_ctx->app_cfg.iBatch; i++) {
-        char *log_to_send = get_random_log(app_ctx);
+        int log_size;
+        char *log_to_send = get_random_log(app_ctx, &log_size);
         if (log_to_send == NULL) {
             break;
         }
 
+        if (log_size >= 16000) {
+            app_ctx->large_log_count++;
+        }
+
+        if (log_size > app_ctx->max_log_size) {
+            app_ctx->max_log_size = log_size;
+        }
+
         if (app_ctx->app_cfg.iUseTLog) {
-            tlog_error(app_ctx->tlog_client, 0, 0, "%s", log_to_send);
+            if (log_size >= 16000) {
+                struct timeval start, end;
+                gettimeofday(&start, NULL);
+
+                tlog_error(app_ctx->tlog_client, 0, 0, "%s", log_to_send);
+
+                gettimeofday(&end, NULL);
+                long elapsed_us = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
+
+                if (elapsed_us > app_ctx->max_large_log_send_time_us) {
+                    app_ctx->max_large_log_send_time_us = elapsed_us;
+                }
+            } else {
+                tlog_error(app_ctx->tlog_client, 0, 0, "%s", log_to_send);
+            }
             app_ctx->sent_count++;
             app_ctx->sent_success_count++;
+            if (app_ctx->sent_count % 500000 == 0) {
+                tlog_info(app_ctx->app_debug_log, 0, 0, "UseTLog: %d, Sent: %d, LargeLogCount: %d, MaxLogSize: %d, MaxLargeLogSendTime: %ld us",
+                          app_ctx->app_cfg.iUseTLog,
+                          app_ctx->sent_count,
+                          app_ctx->large_log_count,
+                          app_ctx->max_log_size,
+                          app_ctx->app_cfg.iUseTLog ? app_ctx->max_large_log_send_time_us : app_ctx->client->metrics->max_update_time_us);
+            }
         } else {
             tglog_client_send(app_ctx->client, log_to_send, tglog_callback, user_data, TGLOG_MSG_F_COPY);
             app_ctx->sent_count++;
             if (app_ctx->sent_count % 500000 == 0) {
+                tlog_info(app_ctx->app_debug_log, 0, 0, "UseTLog: %d, Sent: %d, LargeLogCount: %d, MaxLogSize: %d, MaxLargeLogSendTime: %ld us",
+                          app_ctx->app_cfg.iUseTLog,
+                          app_ctx->sent_count,
+                          app_ctx->large_log_count,
+                          app_ctx->max_log_size,
+                          app_ctx->app_cfg.iUseTLog ? app_ctx->max_large_log_send_time_us : app_ctx->client->metrics->max_update_time_us);
                 char buf[4096];
                 tglog_client_print_metrics(app_ctx->client, buf, sizeof(buf), true);
                 tlog_info(app_ctx->app_debug_log, 0, 0, "%s", buf);
@@ -291,8 +344,14 @@ int svr_proc(TAPPCTX *framework_ctx, void *user_data) {
 int svr_tick(TAPPCTX *framework_ctx, void *user_data) {
     LPAPP_CONTEXT app_ctx = (LPAPP_CONTEXT) user_data;
 
-    if (app_ctx->client == NULL) {
-        return -1;
+    if (app_ctx->app_cfg.iUseTLog) {
+        if (app_ctx->tlog_client == NULL) {
+            return -1;
+        }
+    } else {
+        if (app_ctx->client == NULL) {
+            return -1;
+        }
     }
 
     if (app_ctx->done) {
@@ -313,8 +372,15 @@ int svr_tick(TAPPCTX *framework_ctx, void *user_data) {
         struct timeval end_time;
         gettimeofday(&end_time, NULL);
         long elapsed_time = (end_time.tv_sec - app_ctx->start_time.tv_sec) * 1000000 + (end_time.tv_usec - app_ctx->start_time.tv_usec);
-        tlog_info(app_ctx->app_debug_log, 0, 0, "Sent %d logs in %ld microseconds. Success: %d, Fail: %d, UseTLog: %d",
-                  app_ctx->sent_count, elapsed_time, app_ctx->sent_success_count, app_ctx->sent_fail_count, app_ctx->app_cfg.iUseTLog);
+        tlog_info(app_ctx->app_debug_log, 0, 0, "Sent %d logs in %ld microseconds. Success: %d, Fail: %d, UseTLog: %d, LargeLogCount: %d, MaxLogSize: %d, MaxLargeLogSendTime: %ld us",
+                  app_ctx->sent_count,
+                  elapsed_time,
+                  app_ctx->sent_success_count,
+                  app_ctx->sent_fail_count,
+                  app_ctx->app_cfg.iUseTLog,
+                  app_ctx->large_log_count,
+                  app_ctx->max_log_size,
+                  app_ctx->app_cfg.iUseTLog ? app_ctx->max_large_log_send_time_us : app_ctx->client->metrics->max_update_time_us);
 
         if (!app_ctx->app_cfg.iUseTLog) {
             char buf[8192];
