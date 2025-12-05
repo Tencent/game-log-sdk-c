@@ -87,11 +87,18 @@ ip addr show | grep "inet " | grep -v 127.0.0.1
 
 在**客户端机器**上编辑 `/etc/hosts` 文件：
 
-**Linux/macOS**:
-
 ```bash
 sudo vi /etc/hosts
 ```
+
+添加以下两行（将 IP 地址替换为实际的服务器 IP）：
+
+```
+192.168.1.10 dev.tglog.com
+192.168.1.11 dev.tglog.com
+```
+
+保存文件后，域名 `dev.tglog.com` 就会指向这两台服务器。
 
 ### 3. 验证连接
 
