@@ -1,5 +1,48 @@
 # TGLog SDK C 更新日志
 
+## v1.0.0-rc.3 (2025-12-09)
+
+### 🐛 Bug 修复
+
+- **内存泄漏修复**: 修复了连接创建失败时的多处内存泄漏问题
+  - 修复 `tglog_worker_supplement_conn` 中 `add_connecting_conn` 失败后的连接对象泄漏（2处）
+  - 修复 `tglog_worker_replace_conn` 中 `add_connecting_conn` 失败后的连接对象泄漏
+  - 修复 `tglog_worker_add_conn_by_endpoint` 中 `add_connecting_conn` 失败后的连接对象泄漏
+  - 修复 `tglog_worker_init_conns` 中 `add_connecting_conn` 失败后的连接对象泄漏和统计不准确问题
+  - 修复 `tglog_worker_recover_endpoints` 中 `add_connecting_conn` 失败后的连接对象和 `user_data` 泄漏
+
+### 🔧 优化改进
+
+- **连接恢复机制增强**: 新增紧急连接补充机制，显著提升连接恢复速度
+  - 添加 `emergency_supplement_event` 定时器（每 3 秒检查一次），在 worker READY 后自动启动
+  - 在 `tglog_worker_get_conn` 中添加频率限制（2 秒间隔），避免无可用连接时频繁尝试创建
+  - 添加 `last_emergency_supplement_time` 字段记录上次紧急补充时间
+  - 三层连接恢复机制：
+    1. 发送时检查（2秒间隔）- 在 `tglog_worker_get_conn` 中触发
+    2. 定时主动检查（3秒间隔）- 通过 `emergency_supplement_event` 定时器触发
+    3. Endpoint 恢复（30秒间隔，指数退避）- 通过 `recover_endpoint_event` 定时器触发
+  - 解决了在 batch retry backoff 期间服务器恢复但连接无法及时重建的问题
+
+- **配置优化**: 调整默认配置参数以提升性能
+  - `batching_max_messages`: 从 50 调整为 20，降低单次发送调用消耗
+  - `max_update_us`: 从 200µs 调整为 300µs，减少更新超时
+  - `max_messages_per_update`: 从 1000 调整为 200，降低单次发送调用消耗
+  - 优化 `tglog_worker_handle_msg` 中的更新时间检查频率：从每 10 条消息或 8192 字节检查改为每 5 条消息或 2048 字节检查
+
+- **日志增强**:
+  - 添加更多调试日志，提升问题排查能力
+  - 调整部分日志级别，减少不必要的日志输出
+
+### 📚 文档更新
+
+- 新增限制说明文档，明确系统使用限制和注意事项
+
+### 🔨 代码质量
+
+- 改进错误处理逻辑，确保所有资源正确释放
+- 统一连接创建失败后的清理流程
+- 增强代码注释，提升可维护性
+
 ## v1.0.0-rc.2 (2025-12-05)
 
 ### ✨ 新特性
