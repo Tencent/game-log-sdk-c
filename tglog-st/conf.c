@@ -58,7 +58,7 @@ void tglog_conf_set_default(tglog_conf *conf) {
 
     /* batching and sending defaults */
     conf->batching_max_publish_delay = 10;
-    conf->batching_max_messages = 50;
+    conf->batching_max_messages = 20;
     conf->batching_max_size = 32 * 1024;
     conf->max_pending_messages = 1000000;
     conf->send_timeout = 30000;
@@ -83,8 +83,8 @@ void tglog_conf_set_default(tglog_conf *conf) {
     conf->payload_pool_64kb_cap = 100;
 
     /* single-threaded specific defaults */
-    conf->max_update_us = 200;
-    conf->max_messages_per_update = 1000;
+    conf->max_update_us = 300;
+    conf->max_messages_per_update = 20;
 }
 
 bool tglog_conf_set_server(tglog_conf *conf, tglog_network network, const char *host, int port) {

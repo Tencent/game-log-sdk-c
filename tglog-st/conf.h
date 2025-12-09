@@ -43,7 +43,7 @@ typedef struct tglog_conf {
      */
     int max_conn_lifetime;
     int batching_max_publish_delay;         /* the max delay time in ms of a batch, if times out, the message will be sent immediately, default: 10ms */
-    int batching_max_messages;              /* max messages in a batch, default: 50 */
+    int batching_max_messages;              /* max messages in a batch, default: 20 */
     int batching_max_size;                  /* max batch size in bytes, default: 32*1024 */
     int max_pending_messages;               /* how many messages can be pending every worker, single-threaded version has only 1 worker, default: 1000000, the real value will be the next power of 2 of this config */
     int send_timeout;                       /* send timeout in ms, how long can a message stay in the client, default: 30000ms */
@@ -65,8 +65,8 @@ typedef struct tglog_conf {
     size_t payload_pool_48kb_cap;           /* payload pool 48kb capacity, default: 100 */
     size_t payload_pool_64kb_cap;           /* payload pool 64kb capacity, default: 100 */
     /* single-threaded version specific configs */
-    int max_update_us;                      /* max time in us for a single update call, default: 200us, the real time may exceed this limit */
-    int max_messages_per_update;            /* max messages to process per update, default: 1000 */
+    int max_update_us;                      /* max time in us for a single update call, default: 300us, the real time may exceed this limit */
+    int max_messages_per_update;            /* max messages to process per update, default: 20 */
 } tglog_conf;
 
 /**
