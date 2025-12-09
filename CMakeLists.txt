@@ -46,87 +46,109 @@ file(MAKE_DIRECTORY ${EVENT_INSTALL_DIR})
 file(MAKE_DIRECTORY ${CK_INSTALL_DIR})
 file(MAKE_DIRECTORY ${LIB_DIR})
 
-# 初始化 git 子模块并切换到指定版本
-message(STATUS "Checking git submodules...")
-if(NOT EXISTS ${JEMALLOC_SRC_DIR}/.git OR NOT EXISTS ${EVENT_SRC_DIR}/.git OR NOT EXISTS ${CK_SRC_DIR}/.git)
-    message(STATUS "Initializing git submodules...")
-    execute_process(
-        COMMAND git submodule update --init --recursive
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        RESULT_VARIABLE GIT_SUBMOD_RESULT
-        ERROR_VARIABLE GIT_SUBMOD_ERROR
-    )
-    if(NOT GIT_SUBMOD_RESULT EQUAL "0")
-        message(FATAL_ERROR "git submodule update --init failed with ${GIT_SUBMOD_RESULT}\n${GIT_SUBMOD_ERROR}\nPlease check your network connection and git configuration.\nYou can manually run: git submodule update --init --recursive")
+# 检查依赖是否存在
+message(STATUS "Checking dependencies...")
+
+# 检查目录是否存在且不为空
+file(GLOB JEMALLOC_FILES "${JEMALLOC_SRC_DIR}/*")
+file(GLOB EVENT_FILES "${EVENT_SRC_DIR}/*")
+file(GLOB CK_FILES "${CK_SRC_DIR}/*")
+
+if(NOT JEMALLOC_FILES OR NOT EVENT_FILES OR NOT CK_FILES)
+    message(STATUS "Dependencies not found, initializing...")
+
+    # 检查是否在 git 仓库中
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
+        message(STATUS "Using git submodules...")
+        execute_process(
+            COMMAND git submodule update --init --recursive
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            RESULT_VARIABLE GIT_SUBMOD_RESULT
+            ERROR_VARIABLE GIT_SUBMOD_ERROR
+        )
+        if(NOT GIT_SUBMOD_RESULT EQUAL "0")
+            message(FATAL_ERROR "git submodule update --init failed with ${GIT_SUBMOD_RESULT}\n${GIT_SUBMOD_ERROR}")
+        endif()
+    else()
+        message(STATUS "Running download-deps.sh to download dependencies...")
+        execute_process(
+            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/download-deps.sh
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            RESULT_VARIABLE DOWNLOAD_RESULT
+        )
+        if(NOT DOWNLOAD_RESULT EQUAL "0")
+            message(FATAL_ERROR "Failed to download dependencies. Please check download-deps.sh output.")
+        endif()
     endif()
+else()
+    message(STATUS "Dependencies found")
 endif()
 
-# 验证 submodules 已成功初始化
-if(NOT EXISTS ${JEMALLOC_SRC_DIR}/.git)
-    message(FATAL_ERROR "jemalloc submodule not initialized. Please run: git submodule update --init --recursive")
-endif()
-if(NOT EXISTS ${EVENT_SRC_DIR}/.git)
-    message(FATAL_ERROR "libevent submodule not initialized. Please run: git submodule update --init --recursive")
-endif()
-if(NOT EXISTS ${CK_SRC_DIR}/.git)
-    message(FATAL_ERROR "ck submodule not initialized. Please run: git submodule update --init --recursive")
-endif()
+# 版本检查（只在 git 仓库中进行）
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
+    message(STATUS "Checking out submodules to specific versions...")
 
-# 切换到指定版本（只使用本地 git 命令，不连接远程）
-message(STATUS "Checking out submodules to specific versions...")
+    # Check and checkout jemalloc
+    if(EXISTS ${JEMALLOC_SRC_DIR}/.git)
+        execute_process(
+            COMMAND git describe --tags --exact-match
+            WORKING_DIRECTORY ${JEMALLOC_SRC_DIR}
+            OUTPUT_VARIABLE JEMALLOC_CURRENT
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+        if(NOT JEMALLOC_CURRENT STREQUAL JEMALLOC_VERSION)
+            message(STATUS "  jemalloc: ${JEMALLOC_CURRENT} -> ${JEMALLOC_VERSION}")
+            execute_process(
+                COMMAND git checkout ${JEMALLOC_VERSION}
+                WORKING_DIRECTORY ${JEMALLOC_SRC_DIR}
+                OUTPUT_QUIET ERROR_QUIET
+            )
+        endif()
+    endif()
 
-# Check and checkout jemalloc
-execute_process(
-    COMMAND git describe --tags --exact-match
-    WORKING_DIRECTORY ${JEMALLOC_SRC_DIR}
-    OUTPUT_VARIABLE JEMALLOC_CURRENT
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_QUIET
-)
-if(NOT JEMALLOC_CURRENT STREQUAL JEMALLOC_VERSION)
-    message(STATUS "  jemalloc: ${JEMALLOC_CURRENT} -> ${JEMALLOC_VERSION}")
-    execute_process(
-        COMMAND git checkout ${JEMALLOC_VERSION}
-        WORKING_DIRECTORY ${JEMALLOC_SRC_DIR}
-        OUTPUT_QUIET ERROR_QUIET
-    )
+    # Check and checkout libevent
+    if(EXISTS ${EVENT_SRC_DIR}/.git)
+        execute_process(
+            COMMAND git describe --tags --exact-match
+            WORKING_DIRECTORY ${EVENT_SRC_DIR}
+            OUTPUT_VARIABLE EVENT_CURRENT
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+        if(NOT EVENT_CURRENT STREQUAL EVENT_VERSION)
+            message(STATUS "  libevent: ${EVENT_CURRENT} -> ${EVENT_VERSION}")
+            execute_process(
+                COMMAND git checkout ${EVENT_VERSION}
+                WORKING_DIRECTORY ${EVENT_SRC_DIR}
+                OUTPUT_QUIET ERROR_QUIET
+            )
+        endif()
+    endif()
+
+    # Check and checkout ck
+    if(EXISTS ${CK_SRC_DIR}/.git)
+        execute_process(
+            COMMAND git describe --tags --exact-match
+            WORKING_DIRECTORY ${CK_SRC_DIR}
+            OUTPUT_VARIABLE CK_CURRENT
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+        if(NOT CK_CURRENT STREQUAL CK_VERSION)
+            message(STATUS "  ck: ${CK_CURRENT} -> ${CK_VERSION}")
+            execute_process(
+                COMMAND git checkout ${CK_VERSION}
+                WORKING_DIRECTORY ${CK_SRC_DIR}
+                OUTPUT_QUIET ERROR_QUIET
+            )
+        endif()
+    endif()
+
+    message(STATUS "Submodules checked out to specified versions")
+else()
+    message(STATUS "Using downloaded dependencies (version check skipped)")
 endif()
-
-# Check and checkout libevent
-execute_process(
-    COMMAND git describe --tags --exact-match
-    WORKING_DIRECTORY ${EVENT_SRC_DIR}
-    OUTPUT_VARIABLE EVENT_CURRENT
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_QUIET
-)
-if(NOT EVENT_CURRENT STREQUAL EVENT_VERSION)
-    message(STATUS "  libevent: ${EVENT_CURRENT} -> ${EVENT_VERSION}")
-    execute_process(
-        COMMAND git checkout ${EVENT_VERSION}
-        WORKING_DIRECTORY ${EVENT_SRC_DIR}
-        OUTPUT_QUIET ERROR_QUIET
-    )
-endif()
-
-# Check and checkout ck
-execute_process(
-    COMMAND git describe --tags --exact-match
-    WORKING_DIRECTORY ${CK_SRC_DIR}
-    OUTPUT_VARIABLE CK_CURRENT
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_QUIET
-)
-if(NOT CK_CURRENT STREQUAL CK_VERSION)
-    message(STATUS "  ck: ${CK_CURRENT} -> ${CK_VERSION}")
-    execute_process(
-        COMMAND git checkout ${CK_VERSION}
-        WORKING_DIRECTORY ${CK_SRC_DIR}
-        OUTPUT_QUIET ERROR_QUIET
-    )
-endif()
-
-message(STATUS "Submodules at versions: jemalloc=${JEMALLOC_VERSION}, libevent=${EVENT_VERSION}, ck=${CK_VERSION}")
 
 # 使用 ExternalProject 来构建依赖项
 include(ExternalProject)

@@ -51,51 +51,59 @@ all: deps tglog tglog-st test test-tapp bindings
 
 # Initialize and update git submodules
 init-submodules:
-	$(Q)echo "Initializing git submodules..."
-	$(Q)if [ ! -e "$(JEMALLOC_SRC_DIR)/.git" ] || [ ! -e "$(EVENT_SRC_DIR)/.git" ] || [ ! -e "$(CK_SRC_DIR)/.git" ]; then \
-		echo "  Initializing submodules..."; \
-		git submodule update --init --recursive || { \
-			echo "✗ Failed to initialize submodules"; \
-			echo "  Please check your network connection and git configuration"; \
-			echo "  You can manually run: git submodule update --init --recursive"; \
-			exit 1; \
-		}; \
-	fi
-	$(Q)echo "  Checking out specific versions..."
-	$(Q)if [ -e "$(JEMALLOC_SRC_DIR)/.git" ]; then \
-		cd $(JEMALLOC_SRC_DIR) && \
-		CURRENT=$$(git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
-		if [ "$$CURRENT" != "$(JEMALLOC_VERSION)" ]; then \
-			echo "    jemalloc: $$CURRENT -> $(JEMALLOC_VERSION)"; \
-			git checkout $(JEMALLOC_VERSION) 2>/dev/null || true; \
+	$(Q)echo "Checking dependencies..."
+	$(Q)if [ ! -d "$(JEMALLOC_SRC_DIR)" ] || [ ! "$(shell ls -A $(JEMALLOC_SRC_DIR) 2>/dev/null)" ] || \
+	   [ ! -d "$(EVENT_SRC_DIR)" ] || [ ! "$(shell ls -A $(EVENT_SRC_DIR) 2>/dev/null)" ] || \
+	   [ ! -d "$(CK_SRC_DIR)" ] || [ ! "$(shell ls -A $(CK_SRC_DIR) 2>/dev/null)" ]; then \
+		echo "  Dependencies not found, initializing..."; \
+		if [ -d ".git" ]; then \
+			echo "  Using git submodules..."; \
+			git submodule update --init --recursive || { \
+				echo ""; \
+				echo "✗ Failed to initialize submodules"; \
+				exit 1; \
+			}; \
+		else \
+			echo "  Running download-deps.sh to download dependencies..."; \
+			./download-deps.sh || { \
+				echo ""; \
+				echo "✗ Failed to download dependencies"; \
+				exit 1; \
+			}; \
 		fi; \
 	else \
-		echo "✗ jemalloc submodule not initialized"; \
-		exit 1; \
+		echo "  ✓ Dependencies found"; \
 	fi
-	$(Q)if [ -e "$(EVENT_SRC_DIR)/.git" ]; then \
-		cd $(EVENT_SRC_DIR) && \
-		CURRENT=$$(git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
-		if [ "$$CURRENT" != "$(EVENT_VERSION)" ]; then \
-			echo "    libevent: $$CURRENT -> $(EVENT_VERSION)"; \
-			git checkout $(EVENT_VERSION) 2>/dev/null || true; \
+	$(Q)if [ -d ".git" ]; then \
+		echo "  Checking out specific versions..."; \
+		if [ -e "$(JEMALLOC_SRC_DIR)/.git" ]; then \
+			cd $(JEMALLOC_SRC_DIR) && \
+			CURRENT=$$(git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
+			if [ "$$CURRENT" != "$(JEMALLOC_VERSION)" ]; then \
+				echo "    jemalloc: $$CURRENT -> $(JEMALLOC_VERSION)"; \
+				git checkout $(JEMALLOC_VERSION) 2>/dev/null || true; \
+			fi; \
 		fi; \
-	else \
-		echo "✗ libevent submodule not initialized"; \
-		exit 1; \
-	fi
-	$(Q)if [ -e "$(CK_SRC_DIR)/.git" ]; then \
-		cd $(CK_SRC_DIR) && \
-		CURRENT=$$(git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
-		if [ "$$CURRENT" != "$(CK_VERSION)" ]; then \
-			echo "    ck: $$CURRENT -> $(CK_VERSION)"; \
-			git checkout $(CK_VERSION) 2>/dev/null || true; \
+		if [ -e "$(EVENT_SRC_DIR)/.git" ]; then \
+			cd $(EVENT_SRC_DIR) && \
+			CURRENT=$$(git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
+			if [ "$$CURRENT" != "$(EVENT_VERSION)" ]; then \
+				echo "    libevent: $$CURRENT -> $(EVENT_VERSION)"; \
+				git checkout $(EVENT_VERSION) 2>/dev/null || true; \
+			fi; \
 		fi; \
+		if [ -e "$(CK_SRC_DIR)/.git" ]; then \
+			cd $(CK_SRC_DIR) && \
+			CURRENT=$$(git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
+			if [ "$$CURRENT" != "$(CK_VERSION)" ]; then \
+				echo "    ck: $$CURRENT -> $(CK_VERSION)"; \
+				git checkout $(CK_VERSION) 2>/dev/null || true; \
+			fi; \
+		fi; \
+		echo "✓ Submodules checked out to specified versions"; \
 	else \
-		echo "✗ ck submodule not initialized"; \
-		exit 1; \
+		echo "  ✓ Using downloaded dependencies (version check skipped)"; \
 	fi
-	$(Q)echo "✓ Submodules initialized and checked out to specified versions"
 
 # Build only dependencies
 deps: init-submodules $(DEPS)

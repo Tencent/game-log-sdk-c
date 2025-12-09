@@ -83,6 +83,10 @@ git clone https://git.woa.com/tglog/v3/sdk-c.git
 cd sdk-c
 git submodule update --init --recursive
 
+# 如果下载的是ZIP压缩包（不是git clone）
+# 可以直接make，会自动下载依赖
+# 或者手动下载：./download-deps.sh
+
 # 查看可用的编译目标
 make help
 

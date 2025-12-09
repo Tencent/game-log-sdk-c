@@ -66,3 +66,5 @@ server/bin/*.pid
 server/bin/*.log
 server/data
 server/log
+java
+!bindings/java
