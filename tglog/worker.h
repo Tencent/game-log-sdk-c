@@ -61,7 +61,8 @@ typedef struct tglog_worker {
 
     struct event_base *base;                        /* event base */
     struct event *recover_endpoint_event;           /* recover unavailable endpoint timer event */
-    struct event *dump_event;                       /* worker info dump timer event */
+    struct event *emergency_supplement_event;       /* emergency supplement connections timer event */
+    uint64_t last_emergency_supplement_time;        /* last time emergency supplement_conn was called (milliseconds) */
     struct event *replace_conns_event;              /* replace expired connections timer event */
 
     struct event *msg_event;                        /* message timer event */

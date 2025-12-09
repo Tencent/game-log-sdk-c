@@ -371,7 +371,12 @@ static bool tglog_worker_supplement_conn(tglog_worker *worker) {
                 continue;
             }
 
-            return tglog_worker_add_connecting_conn(worker, new_conn);
+            if (!tglog_worker_add_connecting_conn(worker, new_conn)) {
+                tglog_error(worker->logger, "Add connecting conn failed, close the conn to avoid memory leak, worker: %d, addr: %s", worker->id, ep->addr);
+                tglog_conn_close(new_conn);
+                return false;
+            }
+            return true;
         } else {
             tglog_warn(worker->logger, "Existing connections for endpoint %s is %d, which is greater than target %d",
                        ep->addr, existing_conns, worker->conns_per_endpoint);
@@ -391,7 +396,13 @@ static bool tglog_worker_supplement_conn(tglog_worker *worker) {
     if (!new_conn) {
         return false;
     }
-    return tglog_worker_add_connecting_conn(worker, new_conn);
+
+    if (!tglog_worker_add_connecting_conn(worker, new_conn)) {
+        tglog_error(worker->logger, "Add connecting conn failed, close the conn to avoid memory leak, worker: %d, addr: %s", worker->id, ep->addr);
+        tglog_conn_close(new_conn);
+        return false;
+    }
+    return true;
 }
 
 static bool tglog_worker_replace_conn(tglog_worker *worker, tglog_conn *old_conn) {
@@ -410,7 +421,12 @@ static bool tglog_worker_replace_conn(tglog_worker *worker, tglog_conn *old_conn
             continue;
         }
 
-        return tglog_worker_add_connecting_conn(worker, new_conn);
+        if (!tglog_worker_add_connecting_conn(worker, new_conn)) {
+            tglog_error(worker->logger, "Add connecting conn failed, close the conn to avoid memory leak, worker: %d, addr: %s", worker->id, ep->addr);
+            tglog_conn_close(new_conn);
+            return false;
+        }
+        return true;
     }
 
     return false;
@@ -729,9 +745,14 @@ static bool tglog_worker_init_conns(tglog_worker *worker) {
                 continue;
             }
 
-            tglog_worker_add_connecting_conn(worker, conn);
-            worker->init_conn_count++;
-            successful_conns++;
+            if (tglog_worker_add_connecting_conn(worker, conn)) {
+                worker->init_conn_count++;
+                successful_conns++;
+            } else {
+                tglog_error(worker->logger, "Add connecting conn failed, close the conn to avoid memory leak, worker: %d, addr: %s",
+                           worker->id, worker->endpoints->items[i]->addr);
+                tglog_conn_close(conn);
+            }
         }
 
         /* Mark endpoint unavailable only if all connection attempts failed */
@@ -797,8 +818,18 @@ static void tglog_worker_recover_endpoints(evutil_socket_t fd, short what, void 
 
                 tglog_info(worker->logger, "Trying to recover endpoint connection %d/%d, worker: %d, addr: %s",
                            i + 1, worker->conns_per_endpoint, worker->id, key_ptr);
-                tglog_worker_add_connecting_conn(worker, new_conn);
-                successful_conns++;
+                if (tglog_worker_add_connecting_conn(worker, new_conn)) {
+                    successful_conns++;
+                } else {
+                    tglog_error(worker->logger, "Add connecting conn failed, close the conn to avoid memory leak, worker: %d, addr: %s",
+                               worker->id, (char *) key_ptr);
+                    /* Free endpoint_addr before closing conn, as tglog_conn_close won't trigger on_conn_error callback */
+                    if (new_conn->user_data) {
+                        free(new_conn->user_data);
+                        new_conn->user_data = NULL;
+                    }
+                    tglog_conn_close(new_conn);
+                }
             }
 
             /* Increase retry count after attempting recovery */
@@ -819,19 +850,18 @@ static void tglog_worker_recover_endpoints(evutil_socket_t fd, short what, void 
     }
 }
 
-static void tglog_worker_dump(evutil_socket_t fd, short what, void *user_data) {
+static void tglog_worker_emergency_supplement(evutil_socket_t fd, short what, void *user_data) {
     (void) fd;
     (void) what;
     tglog_worker *worker = user_data;
-    tglog_debug(worker->logger, "Worker: %d ", worker->id);
-    /*
-    tglog_info(worker->logger, "Worker: %d, message queue capacity: %u", worker->id, ck_ring_capacity(&worker->message_queue));
-    tglog_info(worker->logger, "Worker: %d, message queue size: %u", worker->id, ck_ring_size(&worker->message_queue));
-    tglog_info(worker->logger, "Worker: %d, enqueued msg count: %d", worker->id, ck_pr_load_64(&worker->enqueued_msg_count));
-    tglog_info(worker->logger, "Worker: %d, dequeued msg count: %d", worker->id, ck_pr_load_64(&worker->dequeued_msg_count));
-    tglog_info(worker->logger, "Worker: %d, sent msg count: %d", worker->id, worker->sent_msg_count);
-    tglog_info(worker->logger, "Worker: %d, failed msg count: %d", worker->id, worker->failed_msg_count);
-     */
+    tglog_debug(worker->logger, "Worker: %d", worker->id);
+
+    /* Check if there are no available connections */
+    if (worker->conns->count == 0) {
+        tglog_info(worker->logger, "Emergency supplement check: no connections available, try to supplement, worker: %d", worker->id);
+        tglog_worker_supplement_conn(worker);
+        worker->last_emergency_supplement_time = tglog_get_time_ms();
+    }
 }
 
 static bool tglog_worker_is_conn_expired(tglog_worker *worker, tglog_conn *conn) {
@@ -865,8 +895,23 @@ static void tglog_worker_replace_expired_conns(evutil_socket_t fd, short what, v
 static tglog_conn *tglog_worker_get_conn(tglog_worker *worker) {
     if (worker->conns->count <= 0) {
         tglog_fatal(worker->logger, "No available connections, worker: %d", worker->id);
-        /* All connections are closed, try to supplement new connections */
-        tglog_worker_supplement_conn(worker);
+
+        /* Check time interval to avoid frequent emergency supplement attempts */
+        uint64_t now = tglog_get_time_ms();
+        uint64_t elapsed = now - worker->last_emergency_supplement_time;
+        const uint64_t MIN_EMERGENCY_SUPPLEMENT_INTERVAL_MS = 2000; /* 2 seconds */
+
+        if (elapsed >= MIN_EMERGENCY_SUPPLEMENT_INTERVAL_MS) {
+            /* All connections are closed, try to supplement new connections */
+            tglog_info(worker->logger, "Emergency supplement connections, worker: %d, elapsed: %llu ms",
+                      worker->id, (unsigned long long)elapsed);
+            tglog_worker_supplement_conn(worker);
+            worker->last_emergency_supplement_time = now;
+        } else {
+            tglog_debug(worker->logger, "Skip emergency supplement due to time interval, worker: %d, elapsed: %llu ms",
+                       worker->id, (unsigned long long)elapsed);
+        }
+
         return NULL;
     }
 
@@ -1525,9 +1570,10 @@ static int tglog_worker_handle_msg(tglog_worker *worker, bool retry, int max_mes
     int messages_to_process = (max_messages > 0) ? max_messages : TGLOG_MSG_PER_RUN;
 
     int msg_count = 0;
+    size_t msg_len = 0;
     while (msg_count < messages_to_process) {
         /* Check if the maximum update time has been reached every 10 messages */
-        if (start_us > 0 && worker->client->conf.max_update_us > 0 && msg_count > 0 && msg_count % 10 == 0) {
+        if (start_us > 0 && worker->client->conf.max_update_us > 0 && msg_count > 0 && (msg_count % 5 == 0 || msg_len >= 2048)) {
             long elapsed_us = (int64_t) tglog_get_time_us() - (int64_t) start_us;
             if (elapsed_us > worker->client->conf.max_update_us) {
                 break;
@@ -1550,7 +1596,8 @@ static int tglog_worker_handle_msg(tglog_worker *worker, bool retry, int max_mes
         msg_count++;
 
         /* Check if the total size of the message and the current batch exceeds the maximum allowed size */
-        size_t total_len = tglog_message_len(msg) + tglog_batch_len(worker->tmp_batch);
+        msg_len = tglog_message_len(msg);
+        size_t total_len = msg_len + tglog_batch_len(worker->tmp_batch);
         size_t max_req_size = worker->client->conf.network == TGLOG_NETWORK_UDP ? TGLOG_MAX_UDP_REQ_SIZE_V1 : TGLOG_MAX_TCP_REQ_SIZE_V1;
         if (total_len > max_req_size) {
             /* Save the message temporarily */
@@ -1625,6 +1672,9 @@ static bool tglog_worker_add_conn_by_endpoint(tglog_worker *worker, tglog_endpoi
 
         if (tglog_worker_add_connecting_conn(worker, new_conn)) {
             successful_conns++;
+        } else {
+            tglog_error(worker->logger, "Add connecting conn failed, close the conn to avoid memory leak, worker: %d, addr: %s", worker->id, ep->addr);
+            tglog_conn_close(new_conn);
         }
     }
 
@@ -1766,6 +1816,7 @@ tglog_worker *tglog_worker_create(int id, tglog_client *client) {
     worker->logger = client->logger;
     worker->metrics = client->metrics;
     worker->state = TGLOG_WORKER_STATE_INIT;
+    worker->last_emergency_supplement_time = 0;  /* Initialize to 0, allow first supplement immediately */
 
     /* Init delay close conns, unavailable endpoints, endpoint retry counts hash table */
     ck_ht_init(&worker->delay_close_conns, CK_HT_MODE_DIRECT, NULL, &tglog_ck_allocator, 8, 20250606);
@@ -1837,12 +1888,10 @@ tglog_worker *tglog_worker_create(int id, tglog_client *client) {
         event_add(worker->recover_endpoint_event, &interval);
     }
 
-    /* Init worker info dumping timer, dump worker info every 60s */
-    interval.tv_sec = 60;
-    interval.tv_usec = 0;
-    worker->dump_event = event_new(worker->base, -1, EV_TIMEOUT | EV_PERSIST, tglog_worker_dump, worker);
-    if (worker->dump_event) {
-        event_add(worker->dump_event, &interval);
+    /* Create emergency supplement timer (will be started when worker is ready) */
+    worker->emergency_supplement_event = event_new(worker->base, -1, EV_TIMEOUT | EV_PERSIST, tglog_worker_emergency_supplement, worker);
+    if (!worker->emergency_supplement_event) {
+        tglog_error(worker->logger, "Create emergency supplement event failed, worker: %d", worker->id);
     }
 
     /* Init replace expired connections timer if needed */
@@ -1919,6 +1968,14 @@ tglog_worker *tglog_worker_create(int id, tglog_client *client) {
     if (worker->ready_conn <= 0) {
         tglog_error(worker->logger, "Worker init conns failed, close it, id: %d", id);
         goto error;
+    }
+
+    /* Start emergency supplement timer now that worker is ready */
+    if (worker->emergency_supplement_event) {
+        interval.tv_sec = 3;
+        interval.tv_usec = 0;
+        event_add(worker->emergency_supplement_event, &interval);
+        tglog_info(worker->logger, "Started emergency supplement timer, worker: %d", id);
     }
 
     tglog_info(worker->logger, "Worker is ready, id: %d", id);
@@ -2026,9 +2083,9 @@ static void tglog_worker_on_close(tglog_worker *worker) {
         event_del(worker->replace_conns_event);
     }
 
-    if (worker->dump_event) {
-        tglog_info(worker->logger, "Stop dump tick, id: %d", worker->id);
-        event_del(worker->dump_event);
+    if (worker->emergency_supplement_event) {
+        tglog_info(worker->logger, "Stop emergency supplement tick, id: %d", worker->id);
+        event_del(worker->emergency_supplement_event);
     }
 
     if (worker->recover_endpoint_event) {
@@ -2100,9 +2157,9 @@ void tglog_worker_destroy(tglog_worker *worker) {
         event_free(worker->replace_conns_event);
     }
 
-    if (worker->dump_event) {
-        tglog_info(worker->logger, "Stop dump tick, id: %d", worker->id);
-        event_free(worker->dump_event);
+    if (worker->emergency_supplement_event) {
+        tglog_info(worker->logger, "Free emergency supplement event, id: %d", worker->id);
+        event_free(worker->emergency_supplement_event);
     }
 
     if (worker->recover_endpoint_event) {
