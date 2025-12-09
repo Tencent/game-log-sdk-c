@@ -282,7 +282,7 @@ int tglog_client_update(tglog_client *client) {
     tglog_metrics_set_max_event_dispatch_time(client->metrics, event_dispatch_time);
     /* Check if event dispatch took too long */
     if (event_dispatch_time > 1000) {
-        tglog_debug(client->logger, "Event dispatch took %llu us", (unsigned long long) event_dispatch_time);
+        tglog_warn(client->logger, "Event dispatch took %llu us", (unsigned long long) event_dispatch_time);
     }
 //#endif
 
@@ -303,7 +303,7 @@ int tglog_client_update(tglog_client *client) {
     tglog_metrics_set_max_msg_dispatch_time(client->metrics, msg_dispatch_time);
     /* Check if message dispatch took too long */
     if (msg_dispatch_time > 1000) {
-        tglog_debug(client->logger, "Dispatch messages took %llu us", (unsigned long long) msg_dispatch_time);
+        tglog_warn(client->logger, "Dispatch took %llu us, %d messages dispatched", (unsigned long long) msg_dispatch_time, msg_dispatched);
     }
 
     /* Update total update time */
