@@ -153,6 +153,12 @@ int svr_init(TAPPCTX *framework_ctx, void *user_data) {
 int svr_fini(TAPPCTX *framework_ctx, void *user_data) {
     LPAPP_CONTEXT app_ctx = (LPAPP_CONTEXT) user_data;
     if (app_ctx->client) {
+        char buf[8192];
+        tglog_client_print_metrics(app_ctx->client, buf, sizeof(buf), true);
+        tlog_info(app_ctx->app_debug_log, 0, 0, "%s", buf);
+
+        tglog_client_print_mem_pool_stats(app_ctx->client, buf, sizeof(buf), false);
+        tlog_info(app_ctx->app_debug_log, 0, 0, "%s", buf);
         tglog_client_destroy(app_ctx->client);
     }
     free_log_templates(app_ctx);
@@ -315,6 +321,7 @@ int svr_proc(TAPPCTX *framework_ctx, void *user_data) {
                           app_ctx->app_cfg.iUseTLog ? app_ctx->max_large_log_send_time_us : app_ctx->client->metrics->max_update_time_us);
             }
         } else {
+            //测试表明，TGLOG_MSG_F_NONE零拷贝性能更好，但需要保证log_to_send在回调之前不被释放，最好使用内存池分配，这里简单起见直接使用TGLOG_MSG_F_COPY
             tglog_client_send(app_ctx->client, log_to_send, tglog_callback, user_data, TGLOG_MSG_F_COPY);
             app_ctx->sent_count++;
             if (app_ctx->sent_count % 500000 == 0) {
