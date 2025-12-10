@@ -303,7 +303,7 @@ int tglog_client_update(tglog_client *client) {
     tglog_metrics_set_max_msg_dispatch_time(client->metrics, msg_dispatch_time);
     /* Check if message dispatch took too long */
     if (msg_dispatch_time > 1000) {
-        tglog_warn(client->logger, "Dispatch took %llu us, %d messages dispatched", (unsigned long long) msg_dispatch_time, msg_dispatched);
+        tglog_warn(client->logger, "Message dispatch took %llu us, %d messages dispatched", (unsigned long long) msg_dispatch_time, msg_dispatched);
     }
 
     /* Update total update time */
@@ -311,7 +311,7 @@ int tglog_client_update(tglog_client *client) {
     tglog_metrics_set_max_update_time(client->metrics, total_update_time);
     /* Check if update timeout */
     if ((int64_t) total_update_time > client->conf.max_update_us) {
-        tglog_debug(client->logger, "Update took %llu/%llu/%llu(event_dispatch_time/total_time/limit_time) us, msg_dispatched %d messages",
+        tglog_debug(client->logger, "Update took %llu/%llu/%llu(event_dispatch_time/total_time/limit_time) us, dispatched %d messages",
                     (unsigned long long) event_dispatch_time, (unsigned long long) total_update_time, client->conf.max_update_us, msg_dispatched);
         tglog_metrics_inc_timeout_update_count(client->metrics, 1);
     }
