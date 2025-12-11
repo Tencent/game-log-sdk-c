@@ -31,4 +31,8 @@
     <!--DEFAULT VALUE: '0'-->
     <UseTLog>0 </UseTLog>
 
+    <!--ClientBatch: tglog client batch log count-->
+    <!--DEFAULT VALUE: '20'-->
+    <ClientBatch>20 </ClientBatch>
+
 </TestTappCfg>

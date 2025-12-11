@@ -118,6 +118,9 @@ int svr_init(TAPPCTX *framework_ctx, void *user_data) {
     } else {
         tglog_conf conf = {0};
         tglog_conf_set_default(&conf);
+        if (app_ctx->app_cfg.iClientBatch > 0) {
+            conf.batching_max_messages = app_ctx->app_cfg.iClientBatch;
+        }
         conf.write_log = tglog_client_debug_log;
         tglog_network network = TGLOG_NETWORK_TCP;
         if (strcmp(app_ctx->app_cfg.szNetwork, "udp") == 0) {
