@@ -26,7 +26,7 @@ struct app_context {
     bool done;
     char *log_templates[10];            // Store 10 different size logs
     int log_count;
-    long max_large_log_send_time_us;    // Maximum send time for large logs (>=16K) in microseconds
+    long max_log_send_time_us;          // Maximum log send time in microseconds
     int large_log_count;                // Count of large logs sent (>=16K)
     int max_log_size;                   // Maximum log size
 };
@@ -124,7 +124,7 @@ int svr_init(TAPPCTX *framework_ctx, void *user_data) {
         if (app_ctx->app_cfg.iMaxMsgPerUpdate > 0) {
             conf.max_messages_per_update = app_ctx->app_cfg.iMaxMsgPerUpdate;
         }
-        if (app_ctx->app_cfg.iMaxUpdateUs > 0){
+        if (app_ctx->app_cfg.iMaxUpdateUs > 0) {
             conf.max_update_us = app_ctx->app_cfg.iMaxUpdateUs;
         }
         conf.write_log = tglog_client_debug_log;
@@ -145,7 +145,7 @@ int svr_init(TAPPCTX *framework_ctx, void *user_data) {
     app_ctx->sent_fail_count = 0;
     app_ctx->done = false;
     app_ctx->log_count = 0;
-    app_ctx->max_large_log_send_time_us = 0;
+    app_ctx->max_log_send_time_us = 0;
     app_ctx->large_log_count = 0;
     app_ctx->max_log_size = 0;
 
@@ -277,10 +277,8 @@ int svr_proc(TAPPCTX *framework_ctx, void *user_data) {
         if (app_ctx->tlog_client == NULL) {
             return -1;
         }
-    } else {
-        if (app_ctx->client == NULL) {
-            return -1;
-        }
+    } else if (app_ctx->client == NULL) {
+        return -1;
     }
 
     if (app_ctx->sent_count >= app_ctx->app_cfg.iCount) {
@@ -288,6 +286,7 @@ int svr_proc(TAPPCTX *framework_ctx, void *user_data) {
         return 0;
     }
 
+    struct timeval start, end;
     for (int i = 0; i < app_ctx->app_cfg.iBatch; i++) {
         int log_size;
         char *log_to_send = get_random_log(app_ctx, &log_size);
@@ -303,43 +302,34 @@ int svr_proc(TAPPCTX *framework_ctx, void *user_data) {
             app_ctx->max_log_size = log_size;
         }
 
+        gettimeofday(&start, NULL);
+
         if (app_ctx->app_cfg.iUseTLog) {
-            if (log_size >= 16000) {
-                struct timeval start, end;
-                gettimeofday(&start, NULL);
-
-                tlog_error(app_ctx->tlog_client, 0, 0, "%s", log_to_send);
-
-                gettimeofday(&end, NULL);
-                long elapsed_us = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
-
-                if (elapsed_us > app_ctx->max_large_log_send_time_us) {
-                    app_ctx->max_large_log_send_time_us = elapsed_us;
-                }
-            } else {
-                tlog_error(app_ctx->tlog_client, 0, 0, "%s", log_to_send);
-            }
-            app_ctx->sent_count++;
-            app_ctx->sent_success_count++;
-            if (app_ctx->sent_count % 500000 == 0) {
-                tlog_info(app_ctx->app_debug_log, 0, 0, "UseTLog: %d, Sent: %d, LargeLogCount: %d, MaxLogSize: %d, MaxLargeLogSendTime: %ld us",
-                          app_ctx->app_cfg.iUseTLog,
-                          app_ctx->sent_count,
-                          app_ctx->large_log_count,
-                          app_ctx->max_log_size,
-                          app_ctx->app_cfg.iUseTLog ? app_ctx->max_large_log_send_time_us : app_ctx->client->metrics->max_update_time_us);
-            }
+            tlog_error(app_ctx->tlog_client, 0, 0, "%s", log_to_send);
         } else {
             //测试表明，TGLOG_MSG_F_NONE零拷贝性能更好，但需要保证log_to_send在回调之前不被释放，最好使用内存池分配，这里简单起见直接使用TGLOG_MSG_F_COPY
             tglog_client_send(app_ctx->client, log_to_send, tglog_callback, user_data, TGLOG_MSG_F_COPY);
-            app_ctx->sent_count++;
-            if (app_ctx->sent_count % 500000 == 0) {
-                tlog_info(app_ctx->app_debug_log, 0, 0, "UseTLog: %d, Sent: %d, LargeLogCount: %d, MaxLogSize: %d, MaxLargeLogSendTime: %ld us",
-                          app_ctx->app_cfg.iUseTLog,
-                          app_ctx->sent_count,
-                          app_ctx->large_log_count,
-                          app_ctx->max_log_size,
-                          app_ctx->app_cfg.iUseTLog ? app_ctx->max_large_log_send_time_us : app_ctx->client->metrics->max_update_time_us);
+        }
+
+        gettimeofday(&end, NULL);
+        long elapsed_us = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
+        if (elapsed_us > app_ctx->max_log_send_time_us) {
+            app_ctx->max_log_send_time_us = elapsed_us;
+        }
+
+        app_ctx->sent_count++;
+        if (app_ctx->app_cfg.iUseTLog) {
+            app_ctx->sent_success_count++;
+        }
+
+        if (app_ctx->sent_count % 500000 == 0) {
+            tlog_info(app_ctx->app_debug_log, 0, 0, "UseTLog: %d, Sent: %d, LargeLogCount: %d, MaxLogSize: %d, MaxLogSendTime: %ld us",
+                      app_ctx->app_cfg.iUseTLog,
+                      app_ctx->sent_count,
+                      app_ctx->large_log_count,
+                      app_ctx->max_log_size,
+                      app_ctx->max_log_send_time_us);
+            if (!app_ctx->app_cfg.iUseTLog) {
                 char buf[4096];
                 tglog_client_print_metrics(app_ctx->client, buf, sizeof(buf), true);
                 tlog_info(app_ctx->app_debug_log, 0, 0, "%s", buf);
@@ -388,7 +378,8 @@ int svr_tick(TAPPCTX *framework_ctx, void *user_data) {
         struct timeval end_time;
         gettimeofday(&end_time, NULL);
         long elapsed_time = (end_time.tv_sec - app_ctx->start_time.tv_sec) * 1000000 + (end_time.tv_usec - app_ctx->start_time.tv_usec);
-        tlog_info(app_ctx->app_debug_log, 0, 0, "Sent %d logs in %ld microseconds. Success: %d, Fail: %d, UseTLog: %d, LargeLogCount: %d, MaxLogSize: %d, MaxLargeLogSendTime: %ld us",
+        tlog_info(app_ctx->app_debug_log, 0, 0,
+                  "Sent %d logs in %ld microseconds. Success: %d, Fail: %d, UseTLog: %d, LargeLogCount: %d, MaxLogSize: %d, MaxLogSendTime: %ld us",
                   app_ctx->sent_count,
                   elapsed_time,
                   app_ctx->sent_success_count,
@@ -396,7 +387,7 @@ int svr_tick(TAPPCTX *framework_ctx, void *user_data) {
                   app_ctx->app_cfg.iUseTLog,
                   app_ctx->large_log_count,
                   app_ctx->max_log_size,
-                  app_ctx->app_cfg.iUseTLog ? app_ctx->max_large_log_send_time_us : app_ctx->client->metrics->max_update_time_us);
+                  app_ctx->max_log_send_time_us);
 
         if (!app_ctx->app_cfg.iUseTLog) {
             char buf[8192];
