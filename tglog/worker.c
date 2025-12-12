@@ -419,11 +419,10 @@ static bool tglog_worker_replace_conn(tglog_worker *worker, tglog_conn *old_conn
     tglog_debug(worker->logger, "Worker: %d", worker->id);
 
     /* Use round-robin to select endpoint for better load balancing */
-    int start_index = ck_pr_load_64(&worker->conn_index) % worker->endpoints->count;
     int i;
     for (i = 0; i < worker->endpoints->count; i++) {
-        int index = (start_index + i) % worker->endpoints->count;
-        tglog_endpoint *ep = worker->endpoints->items[index];
+        tglog_endpoint *ep = worker->endpoints->items[worker->endpoint_index % worker->endpoints->count];
+        worker->endpoint_index++;
 
         if (tglog_worker_is_endpoint_unavailable(worker, ep->addr)) {
             continue;
@@ -794,7 +793,7 @@ static bool tglog_worker_init_conns(tglog_worker *worker) {
                 successful_conns++;
             } else {
                 tglog_error(worker->logger, "Add connecting conn failed, close the conn to avoid memory leak, worker: %d, addr: %s",
-                           worker->id, worker->endpoints->items[i]->addr);
+                            worker->id, worker->endpoints->items[i]->addr);
                 tglog_conn_close(conn);
             }
         }
@@ -866,7 +865,7 @@ static void tglog_worker_recover_endpoints(evutil_socket_t fd, short what, void 
                     successful_conns++;
                 } else {
                     tglog_error(worker->logger, "Add connecting conn failed, close the conn to avoid memory leak, worker: %d, addr: %s",
-                               worker->id, (char *) key_ptr);
+                                worker->id, (char *) key_ptr);
                     /* Free endpoint_addr before closing conn, as tglog_conn_close won't trigger on_conn_error callback */
                     if (new_conn->user_data) {
                         free(new_conn->user_data);
@@ -948,12 +947,12 @@ static tglog_conn *tglog_worker_get_conn(tglog_worker *worker) {
         if (elapsed >= MIN_EMERGENCY_SUPPLEMENT_INTERVAL_MS) {
             /* All connections are closed, try to supplement new connections */
             tglog_info(worker->logger, "Emergency supplement connections, worker: %d, elapsed: %llu ms",
-                      worker->id, (unsigned long long)elapsed);
+                       worker->id, (unsigned long long) elapsed);
             tglog_worker_supplement_conn(worker);
             worker->last_emergency_supplement_time = now;
         } else {
             tglog_debug(worker->logger, "Skip emergency supplement due to time interval, worker: %d, elapsed: %llu ms",
-                       worker->id, (unsigned long long)elapsed);
+                        worker->id, (unsigned long long) elapsed);
         }
 
         return NULL;

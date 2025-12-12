@@ -44,6 +44,7 @@ typedef struct tglog_worker {
     tglog_endpoint_notify **ep_notify_queue_buffer; /* endpoint notify queue buffer */
 
     tglog_endpoint_list *endpoints;                 /* endpoints */
+    int endpoint_index;                             /* endpoint index */
     tglog_conn_list *connecting_conns;              /* connecting connections */
     int init_conn_count;                            /* init connection count, use at init time only */
     int ready_conn;                                 /* worker init ready conn, use at init time only */
