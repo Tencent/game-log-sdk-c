@@ -12,6 +12,7 @@
         <entry name="UseTLog" type="int" defaultvalue="0" desc="use TLog API to send logs, if we use TLog, please make sure we use the right protocol(tcp/udp) in tlog_cfg.xml"/>
         <entry name="ClientBatch" type="int" defaultvalue="20" desc="tglog client batch log count"/>
         <entry name="MaxMsgPerUpdate" type="int" defaultvalue="20" desc="tglog client max message per update"/>
+        <entry name="MaxUpdateUs" type="int" defaultvalue="300" desc="tglog client max update time threshold in us"/>
     </struct>
 
 </metalib>

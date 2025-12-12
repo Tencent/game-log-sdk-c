@@ -124,6 +124,9 @@ int svr_init(TAPPCTX *framework_ctx, void *user_data) {
         if (app_ctx->app_cfg.iMaxMsgPerUpdate > 0) {
             conf.max_messages_per_update = app_ctx->app_cfg.iMaxMsgPerUpdate;
         }
+        if (app_ctx->app_cfg.iMaxUpdateUs > 0){
+            conf.max_update_us = app_ctx->app_cfg.iMaxUpdateUs;
+        }
         conf.write_log = tglog_client_debug_log;
         tglog_network network = TGLOG_NETWORK_TCP;
         if (strcmp(app_ctx->app_cfg.szNetwork, "udp") == 0) {

@@ -39,4 +39,8 @@
     <!--DEFAULT VALUE: '20'-->
     <MaxMsgPerUpdate>20 </MaxMsgPerUpdate>
 
+    <!--MaxUpdateUs: tglog client max update time threshold in us-->
+    <!--DEFAULT VALUE: '300'-->
+    <MaxUpdateUs>300 </MaxUpdateUs>
+
 </TestTappCfg>
