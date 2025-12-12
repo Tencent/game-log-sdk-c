@@ -35,4 +35,8 @@
     <!--DEFAULT VALUE: '20'-->
     <ClientBatch>20 </ClientBatch>
 
+    <!--MaxMsgPerUpdate: tglog client max message per update-->
+    <!--DEFAULT VALUE: '20'-->
+    <MaxMsgPerUpdate>20 </MaxMsgPerUpdate>
+
 </TestTappCfg>
