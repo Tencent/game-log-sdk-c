@@ -408,9 +408,13 @@ static bool tglog_worker_supplement_conn(tglog_worker *worker) {
 static bool tglog_worker_replace_conn(tglog_worker *worker, tglog_conn *old_conn) {
     tglog_debug(worker->logger, "Worker: %d", worker->id);
 
+    /* Use round-robin to select endpoint for better load balancing */
+    int start_index = worker->conn_index % worker->endpoints->count;
     int i;
     for (i = 0; i < worker->endpoints->count; i++) {
-        tglog_endpoint *ep = worker->endpoints->items[i];
+        int index = (start_index + i) % worker->endpoints->count;
+        tglog_endpoint *ep = worker->endpoints->items[index];
+
         if (tglog_worker_is_endpoint_unavailable(worker, ep->addr)) {
             continue;
         }
