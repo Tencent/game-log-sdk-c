@@ -156,7 +156,7 @@ int main(int argc, char *argv[]) {
 
     /* Initialize token buckets */
     token_bucket send_bucket;
-    init_token_bucket(&send_bucket, send_rate, send_rate);
+    init_token_bucket(&send_bucket, 500, send_rate);
 
     /* Record start time */
     struct timeval start_time, current_time;
@@ -168,16 +168,14 @@ int main(int argc, char *argv[]) {
     /* Main loop */
     int i = 0;
     while (i < to_send) {
-        size_t msg_count = tglog_client_get_msg_queue_size(client);
-        size_t msg_capacity = tglog_client_get_msg_queue_capacity(client);
-        size_t usage = 100 * msg_count / msg_capacity;
-        if (usage < 50) {
-            /* Send log */
-            tglog_client_send(client, log, send_callback, NULL, TGLOG_MSG_F_NONE);
-            i++;
-        } else {
-            tglog_client_update(client);
+        /* Use token bucket to limit the rate for smooth sending */
+        if (!consume_token(&send_bucket, 1)) {
+            usleep(500);
+            continue;
         }
+
+        tglog_client_send(client, log, send_callback, NULL, TGLOG_MSG_F_NONE);
+        i++;
     }
 
     gettimeofday(&current_time, NULL);

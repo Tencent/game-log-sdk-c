@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
     }
 
     token_bucket bucket;
-    init_token_bucket(&bucket, rate + 1, rate);
+    init_token_bucket(&bucket, 500, rate);
 
     tglog_use_thread();
 
@@ -164,10 +164,10 @@ int main(int argc, char *argv[]) {
     int i = 0;
     while (true) {
         // if you want to limit the rate, you can use the token bucket
-//        if (!consume_token(&bucket, 1)) {
-//            usleep(500);
-//            continue;
-//        }
+        if (!consume_token(&bucket, 1)) {
+            usleep(500);
+            continue;
+        }
 
         tglog_client_send(client, log, callback, NULL, TGLOG_MSG_F_COPY);
 
