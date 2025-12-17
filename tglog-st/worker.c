@@ -254,11 +254,11 @@ static void tglog_worker_close_conn_by_timer(evutil_socket_t fd, short what, voi
 }
 
 static void tglog_worker_close_conn_delay(tglog_worker *worker, tglog_conn *conn, int delay_seconds) {
-    tglog_debug(worker->logger, "Worker: %d, addr:%s, delay: %d", worker->id, conn->endpoint, delay_seconds);
-
     if (!conn) {
         return;
     }
+
+    tglog_debug(worker->logger, "Worker: %d, addr:%s, delay: %d", worker->id, conn->endpoint, delay_seconds);
 
     if (delay_seconds <= 0) {
         if (tglog_worker_rescue_pending_data(worker, conn)) {
@@ -1241,6 +1241,10 @@ static int tglog_worker_send_batch_udp(tglog_worker *worker) {
                 tglog_debug(worker->logger, "Send batch encounter EAGAIN or EWOULDBLOCK and will retry again, worker: %d, addr: %s, errno: %d", worker->id, conn->endpoint, err);
                 if (worker->conns->count > 1) {
                     conn = tglog_worker_get_conn(worker);
+                    if (!conn) {
+                        tglog_fatal(worker->logger, "get conn failed, no conn available, worker: %d", worker->id);
+                        return TGLOG_ERR_NO_AVAILABLE_CONN;
+                    }
                     tglog_debug(worker->logger, "Send batch encounter EAGAIN or EWOULDBLOCK, now retry with new conn, worker: %d, addr: %s, errno: %d", worker->id, conn->endpoint, err);
                 }
                 continue;
@@ -1253,6 +1257,10 @@ static int tglog_worker_send_batch_udp(tglog_worker *worker) {
 
             if (worker->conns->count > 0) {
                 conn = tglog_worker_get_conn(worker);
+                if (!conn) {
+                    tglog_fatal(worker->logger, "get conn failed, no conn available, worker: %d", worker->id);
+                    return TGLOG_ERR_NO_AVAILABLE_CONN;
+                }
                 tglog_warn(worker->logger, "Send batch failed, now retry with new conn, worker: %d, addr: %s, errno: %d", worker->id, conn->endpoint, err);
                 continue;
             }
@@ -1450,6 +1458,10 @@ static int tglog_worker_send_batch_tcp(tglog_worker *worker) {
 
             if (worker->conns->count > 0 && try_count < worker->conns->count) {
                 conn = tglog_worker_get_conn(worker);
+                if (!conn) {
+                    tglog_fatal(worker->logger, "get conn failed, no conn available, worker: %d", worker->id);
+                    return TGLOG_ERR_NO_AVAILABLE_CONN;
+                }
                 tglog_warn(worker->logger, "Send batch failed, now retry with new conn, worker: %d, addr: %s, try_count: %d", worker->id, conn->endpoint, try_count);
                 continue;
             }
