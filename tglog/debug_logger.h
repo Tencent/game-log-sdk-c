@@ -127,7 +127,7 @@ void tglog_std_write_log(void *user_data, tglog_level level, const char *file, c
     if (!(logger)->can_log || !(logger)->write_log) break; \
     if (!(logger)->can_log(level, (logger)->user_data)) break; \
     (logger)->write_log((logger)->user_data, level, __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__); \
-} while(0)
+} while (0)
 
 /**
  Writes a debug log with the given logger

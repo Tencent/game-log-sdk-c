@@ -289,4 +289,4 @@ int tglog_metrics_print_json(tglog_metrics *metrics, char *buffer, size_t size);
 }
 #endif
 
-#endif //TGLOG_METRICS_H
+#endif /* TGLOG_METRICS_H */

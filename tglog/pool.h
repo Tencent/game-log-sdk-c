@@ -231,4 +231,4 @@ bool tglog_mem_pool_get_stats(tglog_mem_pool *pool, tglog_mem_pool_stats *stats)
 }
 #endif
 
-#endif //TGLOG_POOL_H
+#endif /* TGLOG_POOL_H */

@@ -247,4 +247,4 @@ void tglog_conn_list_destroy(tglog_conn_list *list);
 }
 #endif
 
-#endif
+#endif /* TGLOG_CONN_H */

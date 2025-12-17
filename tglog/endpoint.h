@@ -95,4 +95,4 @@ void tglog_endpoint_list_remove(tglog_endpoint_list *list, char *addr);
 }
 #endif
 
-#endif
+#endif /* TGLOG_ENDPOINT_H */
