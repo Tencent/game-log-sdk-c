@@ -1760,7 +1760,7 @@ tglog_worker *tglog_worker_create(int id, tglog_client *client) {
 
     /* Start emergency supplement timer now that worker is ready */
     if (worker->emergency_supplement_event) {
-        interval.tv_sec = 3;
+        interval.tv_sec = 5;
         interval.tv_usec = 0;
         event_add(worker->emergency_supplement_event, &interval);
         tglog_info(worker->logger, "Started emergency supplement timer, worker: %d", id);
