@@ -503,7 +503,7 @@ static void tglog_worker_on_conn_connected(tglog_worker *worker, tglog_conn *con
     conn->create_type = CREATE_BY_NONE;
 }
 
-static void tglog_worker_on_conn_error(tglog_worker *worker, tglog_conn *conn, short what, bool e_again) {
+static void tglog_worker_on_conn_error(tglog_worker *worker, tglog_conn *conn, short what) {
     tglog_error(worker->logger, "Worker: %d, addr: %s, event: %d", worker->id, conn->endpoint, what);
 
     /* Update metrics */
@@ -575,7 +575,7 @@ static void tglog_worker_on_event(struct bufferevent *bev, short what, void *use
     if (what & BEV_EVENT_CONNECTED) {
         tglog_worker_on_conn_connected(worker, conn);
     } else {
-        tglog_worker_on_conn_error(worker, conn, what, false);
+        tglog_worker_on_conn_error(worker, conn, what);
     }
 }
 
@@ -1162,7 +1162,7 @@ static int tglog_worker_send_batch_udp(tglog_worker *worker) {
             tglog_error(worker->logger, "Send batch failed, we will retry later, worker: %d, addr: %s, sent: %d, errno: %d", worker->id, conn->endpoint, bytes_sent, err);
 
             /* Mark the endpoint as unavailable, remove the connection and supplement a new connection */
-            tglog_worker_on_conn_error(worker, conn, BEV_EVENT_WRITING | BEV_EVENT_ERROR, false);
+            tglog_worker_on_conn_error(worker, conn, BEV_EVENT_WRITING | BEV_EVENT_ERROR);
 
             if (worker->conns->count > 0) {
                 conn = tglog_worker_get_conn(worker);
@@ -1253,7 +1253,7 @@ static int tglog_worker_send_batch_udp(tglog_worker *worker) {
             tglog_error(worker->logger, "Send batch failed, we will retry later, worker: %d, addr: %s, sent: %d, errno: %d", worker->id, conn->endpoint, bytes_sent, err);
 
             /* Mark the endpoint as unavailable, remove the connection and supplement a new connection */
-            tglog_worker_on_conn_error(worker, conn, BEV_EVENT_WRITING | BEV_EVENT_ERROR, false);
+            tglog_worker_on_conn_error(worker, conn, BEV_EVENT_WRITING | BEV_EVENT_ERROR);
 
             if (worker->conns->count > 0) {
                 conn = tglog_worker_get_conn(worker);
@@ -1299,7 +1299,7 @@ static int tglog_worker_send_batch_tcp_v1(tglog_worker *worker) {
 
         /* Mark the endpoint as unavailable, remove the connection and supplement a new connection */
         if (ret != TGLOG_ERR_CONN_EAGAIN) {
-            tglog_worker_on_conn_error(worker, conn, BEV_EVENT_WRITING | BEV_EVENT_ERROR, true);
+            tglog_worker_on_conn_error(worker, conn, BEV_EVENT_WRITING | BEV_EVENT_ERROR);
         } else {
             tglog_worker_supplement_conn(worker);
         }
@@ -1374,7 +1374,7 @@ static int tglog_worker_send_batch_v2(tglog_worker *worker) {
             tglog_error(worker->logger, "Send batch failed, we will retry later, worker: %d, addr: %s, sent: %d", worker->id, conn->endpoint, bytes_sent);
 
             /* Mark the endpoint as unavailable, remove the connection and supplement a new connection */
-            tglog_worker_on_conn_error(worker, conn, BEV_EVENT_WRITING | BEV_EVENT_ERROR, false);
+            tglog_worker_on_conn_error(worker, conn, BEV_EVENT_WRITING | BEV_EVENT_ERROR);
 
             if (worker->conns->count > 0) {
                 conn = tglog_worker_get_conn(worker);
@@ -1453,7 +1453,7 @@ static int tglog_worker_send_batch_tcp(tglog_worker *worker) {
 
             /* Mark the endpoint as unavailable, remove the connection and supplement a new connection */
             if (bytes_sent < 0) {
-                tglog_worker_on_conn_error(worker, conn, BEV_EVENT_WRITING | BEV_EVENT_ERROR, false);
+                tglog_worker_on_conn_error(worker, conn, BEV_EVENT_WRITING | BEV_EVENT_ERROR);
             }
 
             if (worker->conns->count > 0 && try_count < worker->conns->count) {
