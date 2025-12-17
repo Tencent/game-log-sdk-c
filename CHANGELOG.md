@@ -9,7 +9,8 @@
 
 - **连接初始化**: 
   - tglog-st 在服务端节点数小于等于2时，每节点连接数从4改为3，减少连接数并降低内存占用
-
+- **连接恢复机制增强**:
+  - `emergency_supplement_event` 定时器周期改为5s
 - **测试程序改进**：
   - test 程序使用令牌桶控制发送速度
   - test-st 程序使用令牌桶控制发送速度
@@ -20,6 +21,11 @@
 - test-tapp 新增UDP场景测试限制说明文档
 
 ### 🔨 代码质量
+
+- 修复静态代码检查问题
+- 删除无用参数
+- 删除无用函数
+
 
 
 ### 🔨 构建与配置
@@ -40,13 +46,13 @@
 
 ### 🔧 优化改进
 
-- **连接恢复机制增强**: 新增紧急连接补充机制，显著提升连接恢复速度
-  - 添加 `emergency_supplement_event` 定时器（每 3 秒检查一次），在 worker READY 后自动启动
+- **连接恢复机制增强**: 新增紧急连接补充机制，提升连接恢复速度
+  - 添加 `emergency_supplement_event` 定时器（每 5 秒检查一次），在 worker READY 后自动启动
   - 在 `tglog_worker_get_conn` 中添加频率限制（2 秒间隔），避免无可用连接时频繁尝试创建
   - 添加 `last_emergency_supplement_time` 字段记录上次紧急补充时间
   - 三层连接恢复机制：
     1. 发送时检查（2秒间隔）- 在 `tglog_worker_get_conn` 中触发
-    2. 定时主动检查（3秒间隔）- 通过 `emergency_supplement_event` 定时器触发
+    2. 定时主动检查（5秒间隔）- 通过 `emergency_supplement_event` 定时器触发
     3. Endpoint 恢复（30秒间隔，指数退避）- 通过 `recover_endpoint_event` 定时器触发
   - 解决了在 batch retry backoff 期间服务器恢复但连接无法及时重建的问题
 
