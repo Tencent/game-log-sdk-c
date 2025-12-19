@@ -68,7 +68,7 @@ typedef void (*tglog_send_callback)(const char *log_payload, int err_code, const
 
 /**
  * Send a log to the server.
- * 
+ *
  * TGLog is of this format: "<log_name>|v1|v2|v3|...|vn\n",
  * for example: "login|2025-06-06 12:00:00|username|password\n",
  * where log_name is: "login",
@@ -79,10 +79,18 @@ typedef void (*tglog_send_callback)(const char *log_payload, int err_code, const
  * @param callback The callback function.
  * @param user_data The user data used to call the callback.
  * @param msg_flag The flag of the message, can be TGLOG_MSG_F_NONE, TGLOG_MSG_F_FREE or TGLOG_MSG_F_COPY, see def.h to reference the flags.
- *  TGLOG_MSG_F_NONE: The client will not free or copy the log_payload, you need to free it yourself.
- *  TGLOG_MSG_F_FREE: The client will call free() to free the log_payload after sending, make sure your log_payload is allocated with malloc()/calloc().
+ *  TGLOG_MSG_F_NONE: The client will not free or copy the log_payload, you need to manage it yourself.
+ *  TGLOG_MSG_F_FREE: The client will call free() to free the log_payload (even on error), make sure your log_payload is allocated with malloc()/calloc().
  *  TGLOG_MSG_F_COPY: The client will copy the log_payload before sending, you can free it yourself after the call.
- * @return 0 on success, others on error, see def.h to reference the error codes.
+ *
+ * @return
+ *  TGLOG_ERR_OK (0): Success, the log has been enqueued and will be sent asynchronously.
+ *  Other error codes: Failed to enqueue the log. No callback will be triggered.
+ *
+ * @note Memory management on error:
+ *  - If msg_flag is TGLOG_MSG_F_FREE: The SDK has already freed the log_payload for you.
+ *  - If msg_flag is TGLOG_MSG_F_NONE: You still own the log_payload and should manage it.
+ *  - If msg_flag is TGLOG_MSG_F_COPY: You still own the log_payload and should manage it.
  */
 int tglog_client_send(tglog_client *client, const char *log_payload, tglog_send_callback callback, void *user_data, tglog_msg_flag msg_flag);
 
