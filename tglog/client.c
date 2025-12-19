@@ -176,23 +176,17 @@ static tglog_worker *tglog_client_get_worker(tglog_client *client) {
 
 int tglog_client_send(tglog_client *client, const char *log_payload, tglog_send_callback callback, void *user_data, tglog_msg_flag msg_flag) {
     if (!log_payload) {
-        if (callback) {
-            callback(log_payload, TGLOG_ERR_BAD_LOG, "Payload is NULL", user_data);
-        }
+        // no need to callback
         return TGLOG_ERR_BAD_LOG;
     }
 
     if (msg_flag < TGLOG_MSG_F_NONE || msg_flag > TGLOG_MSG_F_COPY) {
-        if (callback) {
-            callback(log_payload, TGLOG_ERR_BAD_FLAG, "Message flag is invalid", user_data);
-        }
+        // no need to callback
         return TGLOG_ERR_BAD_FLAG;
     }
 
     if (!client) {
-        if (callback) {
-            callback(log_payload, TGLOG_ERR_UNKNOWN, "Client is NULL", user_data);
-        }
+        // no need to callback
         if (msg_flag == TGLOG_MSG_F_FREE) {
             free((void *) log_payload);
         }
@@ -202,9 +196,7 @@ int tglog_client_send(tglog_client *client, const char *log_payload, tglog_send_
     tglog_worker *worker = tglog_client_get_worker(client);
     if (!worker) {
         tglog_fatal(client->logger, "Get worker failed, should not be here");
-        if (callback) {
-            callback(log_payload, TGLOG_ERR_UNKNOWN, "Get worker failed", user_data);
-        }
+        // no need to callback
         if (msg_flag == TGLOG_MSG_F_FREE) {
             free((void *) log_payload);
         }

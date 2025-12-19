@@ -753,7 +753,7 @@ static bool tglog_worker_init_conns(tglog_worker *worker) {
                 successful_conns++;
             } else {
                 tglog_error(worker->logger, "Add connecting conn failed, close the conn to avoid memory leak, worker: %d, addr: %s",
-                           worker->id, worker->endpoints->items[i]->addr);
+                            worker->id, worker->endpoints->items[i]->addr);
                 tglog_conn_close(conn);
             }
         }
@@ -825,7 +825,7 @@ static void tglog_worker_recover_endpoints(evutil_socket_t fd, short what, void 
                     successful_conns++;
                 } else {
                     tglog_error(worker->logger, "Add connecting conn failed, close the conn to avoid memory leak, worker: %d, addr: %s",
-                               worker->id, (char *) key_ptr);
+                                worker->id, (char *) key_ptr);
                     /* Free endpoint_addr before closing conn, as tglog_conn_close won't trigger on_conn_error callback */
                     if (new_conn->user_data) {
                         free(new_conn->user_data);
@@ -907,12 +907,12 @@ static tglog_conn *tglog_worker_get_conn(tglog_worker *worker) {
         if (elapsed >= MIN_EMERGENCY_SUPPLEMENT_INTERVAL_MS) {
             /* All connections are closed, try to supplement new connections */
             tglog_info(worker->logger, "Emergency supplement connections, worker: %d, elapsed: %llu ms",
-                      worker->id, (unsigned long long)elapsed);
+                       worker->id, (unsigned long long) elapsed);
             tglog_worker_supplement_conn(worker);
             worker->last_emergency_supplement_time = now;
         } else {
             tglog_debug(worker->logger, "Skip emergency supplement due to time interval, worker: %d, elapsed: %llu ms",
-                       worker->id, (unsigned long long)elapsed);
+                        worker->id, (unsigned long long) elapsed);
         }
 
         return NULL;
@@ -2040,10 +2040,7 @@ int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_
     /* Check log_payload validity */
     if (log_payload_len <= 0) {
         tglog_error(worker->logger, "Invalid argument, log_payload is empty, worker: %d", worker->id);
-        if (callback) {
-            callback(log_payload, TGLOG_ERR_BAD_LOG, tglog_get_err_msg(TGLOG_ERR_BAD_LOG), user_data);
-        }
-
+        // no need to callback
         if (msg_flag == TGLOG_MSG_F_FREE) {
             free((void *) log_payload);
         }
@@ -2056,10 +2053,7 @@ int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_
     /* Check log payload length */
     if (log_payload[log_payload_len - 1] != TGLOG_DELIMITER) {
         tglog_error(worker->logger, "Invalid argument, log_payload does not end with delimiter, worker: %d", worker->id);
-        if (callback) {
-            callback(log_payload, TGLOG_ERR_BAD_LOG, tglog_get_err_msg(TGLOG_ERR_BAD_LOG), user_data);
-        }
-
+        // no need to callback
         if (msg_flag == TGLOG_MSG_F_FREE) {
             free((void *) log_payload);
         }
@@ -2084,10 +2078,7 @@ int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_
 
     if (too_long) {
         tglog_error(worker->logger, "Invalid argument, log_payload is too long, worker: %d, size: %zu", worker->id, log_payload_len);
-        if (callback) {
-            callback(log_payload, TGLOG_ERR_LOG_TOO_LONG, tglog_get_err_msg(TGLOG_ERR_LOG_TOO_LONG), user_data);
-        }
-
+        // no need to callback
         if (msg_flag == TGLOG_MSG_F_FREE) {
             free((void *) log_payload);
         }
@@ -2100,10 +2091,7 @@ int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_
     /* Check worker state */
     if (worker->state != TGLOG_WORKER_STATE_READY) {
         tglog_warn(worker->logger, "Try to send msg but worker is not ready yet, worker: %d", worker->id);
-        if (callback) {
-            callback(log_payload, TGLOG_ERR_PRODUCER_CLOSED, tglog_get_err_msg(TGLOG_ERR_PRODUCER_CLOSED), user_data);
-        }
-
+        // no need to callback
         if (msg_flag == TGLOG_MSG_F_FREE) {
             free((void *) log_payload);
         }
@@ -2116,10 +2104,7 @@ int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_
     tglog_message *msg = tglog_message_create(worker->client->mem_pool, log_payload, log_payload_len, callback, user_data, msg_flag, worker->metrics, worker->id);
     if (!msg) {
         tglog_fatal(worker->logger, "Create msg failed, worker: %d", worker->id);
-        if (callback) {
-            callback(log_payload, TGLOG_ERR_MEMORY_ALLOC_FAILED, tglog_get_err_msg(TGLOG_ERR_MEMORY_ALLOC_FAILED), user_data);
-        }
-
+        // no need to callback
         if (msg_flag == TGLOG_MSG_F_FREE) {
             free((void *) log_payload);
         }
@@ -2131,8 +2116,9 @@ int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_
     /* Try to add to queue */
     if (!ck_ring_enqueue_spsc_msg_queue(&worker->message_queue, worker->message_queue_buffer, &msg)) {
         tglog_fatal(worker->logger, "Enqueue msg failed, worker: %d", worker->id);
-        /* Use done to handle callback, metrics and cleanup */
-        tglog_message_done(msg, TGLOG_ERR_SEND_QUEUE_IS_FULL);
+        // no need to callback
+        tglog_message_destroy(msg);
+        tglog_metrics_inc_failed_msg_count(worker->metrics, 1);
         return TGLOG_ERR_SEND_QUEUE_IS_FULL;
     }
 
