@@ -156,7 +156,7 @@ int main(int argc, char *argv[]) {
 
     /* Initialize token buckets */
     token_bucket send_bucket;
-    init_token_bucket(&send_bucket, 500, send_rate);
+    init_token_bucket(&send_bucket, 50000, send_rate);
 
     /* Record start time */
     struct timeval start_time, current_time;

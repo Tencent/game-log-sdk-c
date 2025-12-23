@@ -73,7 +73,7 @@ void callback(const char *payload, int err_code, const char *err_msg, void *user
 
 int main(int argc, char *argv[]) {
     // 设置默认值
-    uint32_t to_send = 1000000;
+    uint32_t to_send = 10000000;
     int rate = 1000000;
     tglog_network protocol = TGLOG_NETWORK_TCP;
     const char *ip = "dev.tglog.com";
@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
     }
 
     token_bucket bucket;
-    init_token_bucket(&bucket, 500, rate);
+    init_token_bucket(&bucket, 200000, rate);
 
     tglog_use_thread();
 
