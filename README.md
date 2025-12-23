@@ -39,6 +39,8 @@ TGLog SDK 是一个专为高性能日志传输设计的C语言客户端库，提
 - **Java**: JNI绑定，支持DirectByteBuffer零拷贝
 - **Python**: 提供ctypes、C扩展和Cython三种实现
 
+> 说明：目前已经有纯JAVA版本的[SDK](https://git.woa.com/tglog/v3/sdk-java)
+
 ### ⚙️ 灵活配置
 - **参数可调**: 批次大小、超时时间、重传次数等
 - **连接管理**: 半长连接，支持生命周期配置
