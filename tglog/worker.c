@@ -1489,17 +1489,6 @@ static void tglog_worker_on_endpoint_update(tglog_worker *worker) {
     }
 
     int i;
-    /* Remove endpoints and connections */
-    for (i = 0; i < epn->removed->count; i++) {
-        tglog_endpoint *ep = epn->removed->items[i];
-        tglog_worker_remove_endpoint(worker, ep);
-        tglog_worker_remove_conn_by_endpoint(worker, ep);
-        tglog_worker_del_unavailable_endpoint(worker, ep->addr);
-        tglog_worker_del_endpoint_retry_count(worker, ep->addr);
-
-        tglog_metrics_inc_remove_endpoint_count(worker->metrics, worker->id, 1);
-    }
-
     /* Add endpoints and connections */
     for (i = 0; i < epn->added->count; i++) {
         tglog_endpoint *ep = epn->added->items[i];
@@ -1511,6 +1500,17 @@ static void tglog_worker_on_endpoint_update(tglog_worker *worker) {
         }
 
         tglog_metrics_inc_add_endpoint_count(worker->metrics, worker->id, 1);
+    }
+
+    /* Remove endpoints and connections */
+    for (i = 0; i < epn->removed->count; i++) {
+        tglog_endpoint *ep = epn->removed->items[i];
+        tglog_worker_remove_endpoint(worker, ep);
+        tglog_worker_remove_conn_by_endpoint(worker, ep);
+        tglog_worker_del_unavailable_endpoint(worker, ep->addr);
+        tglog_worker_del_endpoint_retry_count(worker, ep->addr);
+
+        tglog_metrics_inc_remove_endpoint_count(worker->metrics, worker->id, 1);
     }
 
     tglog_metrics_set_worker_endpoint_count(worker->metrics, worker->id, worker->endpoints->count);
