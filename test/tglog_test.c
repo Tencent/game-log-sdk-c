@@ -53,7 +53,7 @@ int consume_token(token_bucket *bucket, int tokens_needed) {
 void print_usage(const char *prog_name) {
     printf("Usage: %s [options]\n", prog_name);
     printf("Options:\n");
-    printf("  -t, --to-send NUM      Number of messages to send (default: 1000000)\n");
+    printf("  -t, --to-send NUM      Number of messages to send (default: 10000000)\n");
     printf("  -r, --rate NUM         Token bucket refill rate (default: 1000000)\n");
     printf("  -p, --protocol PROTO    Protocol type: udp or tcp (default: tcp)\n");
     printf("  -i, --ip IP_ADDRESS    Target IP address (default: dev.tglog.com)\n");
@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
     }
 
     token_bucket bucket;
-    init_token_bucket(&bucket, 200000, rate);
+    init_token_bucket(&bucket, 250000, rate);
 
     tglog_use_thread();
 
