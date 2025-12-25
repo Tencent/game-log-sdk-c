@@ -9,7 +9,7 @@
 #include "worker.h"
 #include "debug_logger.h"
 
-#define TGLOG_DEFAULT_WRITE_HIGH_WATERMARK 32 * 1024 * 1024
+#define TGLOG_DEFAULT_WRITE_HIGH_WATERMARK (32 * 1024 * 1024)
 
 tglog_conn *tglog_conn_create(tglog_worker *worker, tglog_conn_create_type create_type, tglog_network network, const char *endpoint,
                               evutil_socket_t fd, struct bufferevent *bev, void *user_data,
