@@ -70,7 +70,7 @@ make check-deps
 ### Basic Usage
 
 ```c
-#include "tglog/client.h"
+#include "tglog/tglog.h"
 
 // Process-level configuration, IMPORTANT: call only once per process
 tglog_use_thread();

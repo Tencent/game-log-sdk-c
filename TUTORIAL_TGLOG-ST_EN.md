@@ -126,7 +126,7 @@ Here's the simplest example showing how to send a log:
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include "tglog/tglog.h"
+#include "tglog-st/tglog.h"
 
 // Callback function: called when log send succeeds or fails
 void send_callback(const char *log_payload, int err_code, const char *err_msg, void *user_data) {
@@ -408,7 +408,7 @@ If you want to view SDK internal operations, can configure debug logging:
 ```c
 #include <stdio.h>
 #include <stdarg.h>
-#include "tglog/tglog.h"
+#include "tglog-st/tglog.h"
 
 // Determine whether to output certain log level
 bool can_log(tglog_level level, void *user_data) {
@@ -756,7 +756,7 @@ Compared to multi-threaded version, main differences in single-threaded version:
 #include <stdlib.h>
 #include <time.h>
 #include <sys/time.h>
-#include "tglog/tglog.h"
+#include "tglog-st/tglog.h"
 
 // Global statistics
 int g_success_count = 0;

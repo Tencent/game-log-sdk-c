@@ -70,7 +70,7 @@ make check-deps
 ### 基本使用
 
 ```c
-#include "tglog/client.h"
+#include "tglog/tglog.h"
 
 // 进程级配置，重要：一个进程只需要调用一次
 tglog_use_thread();

@@ -126,7 +126,7 @@ dist/
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include "tglog/tglog.h"
+#include "tglog-st/tglog.h"
 
 // 回调函数:当日志发送成功或失败时被调用
 void send_callback(const char *log_payload, int err_code, const char *err_msg, void *user_data) {
@@ -408,7 +408,7 @@ conf->payload_pool_64kb_cap = 100;    // 64KB池,默认: 100
 ```c
 #include <stdio.h>
 #include <stdarg.h>
-#include "tglog/tglog.h"
+#include "tglog-st/tglog.h"
 
 // 判断是否输出某个级别的日志
 bool can_log(tglog_level level, void *user_data) {
@@ -756,7 +756,7 @@ int tglog_client_print_mem_pool_stats(
 #include <stdlib.h>
 #include <time.h>
 #include <sys/time.h>
-#include "tglog/tglog.h"
+#include "tglog-st/tglog.h"
 
 // 全局统计
 int g_success_count = 0;
