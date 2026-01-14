@@ -961,7 +961,7 @@ static void tglog_worker_start_retrying(tglog_worker *worker) {
 
     if (worker->tmp_batch->retries == 1) {
         gettimeofday(&worker->tmp_batch->retry_start_time, NULL);
-        unsigned int deadline_time = tglog_backoff_next_interval(&tglog_batch_retry_backoff, worker->client->conf.max_retries + 1, false);
+        unsigned int deadline_time = tglog_backoff_get_total_backoff_time(&tglog_batch_retry_backoff, worker->client->conf.max_retries + 1);
         worker->tmp_batch->retry_deadline.tv_sec = worker->tmp_batch->retry_start_time.tv_sec + deadline_time / 1000;
         worker->tmp_batch->retry_deadline.tv_usec = worker->tmp_batch->retry_start_time.tv_usec + (deadline_time % 1000) * 1000;
     }

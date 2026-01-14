@@ -184,6 +184,15 @@ typedef struct tglog_backoff {
  */
 unsigned int tglog_backoff_next_interval(tglog_backoff *b, int retry_count, bool bound_max);
 
+/**
+ * Get the total backoff time by retry count.
+ *
+ * @param b The backoff.
+ * @param retry_count The retry count.
+ * @return The total backoff time.
+ */
+unsigned int tglog_backoff_get_total_backoff_time(tglog_backoff *b, int retry_count);
+
 /* Forward declaration */
 typedef struct tglog_endpoint_list tglog_endpoint_list;
 

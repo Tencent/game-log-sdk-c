@@ -284,6 +284,18 @@ unsigned int tglog_backoff_next_interval(tglog_backoff *b, int retry_count, bool
     return (unsigned int) interval;
 }
 
+unsigned int tglog_backoff_get_total_backoff_time(tglog_backoff *b, int retry_count){
+    if (retry_count <= 0) {
+        return 0;
+    }
+
+    unsigned int total = 0;
+    for (int i = 1; i <= retry_count; i++) {
+        total += tglog_backoff_next_interval(b, i, true);
+    }
+    return total;
+}
+
 tglog_endpoint_notify *tglog_endpoint_notify_create(const tglog_endpoint_list *all, const tglog_endpoint_list *added, const tglog_endpoint_list *removed) {
     /* Create an endpoint notify */
     tglog_endpoint_notify *epn = (tglog_endpoint_notify *) malloc(sizeof(tglog_endpoint_notify));
