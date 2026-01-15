@@ -1288,7 +1288,7 @@ static int tglog_worker_handle_msg(tglog_worker *worker, bool retry, int max_mes
 
     /* Check if retrying is timeout every message notify, make sure retrying is not stuck */
     if (tglog_worker_is_retrying(worker)) {
-        if (retry && !tglog_worker_is_retrying_timeout(worker)) {
+        if (retry && !tglog_worker_is_retrying_timeout(worker) && !tglog_worker_batch_send_timeout(worker)) {
             tglog_debug(worker->logger, "Send batch is retrying, ignore the new message, worker: %d", worker->id);
             return 0;
         }
