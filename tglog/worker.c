@@ -399,7 +399,33 @@ static bool tglog_worker_supplement_conn(tglog_worker *worker) {
         return false;
     }
 
-    /* Randomly select an endpoint */
+    /* Fallback: Randomly select an endpoint and force create connection
+     *
+     * This fallback logic handles critical scenarios where the first loop cannot create connections:
+     *
+     * 1. Partial endpoint failure with load rebalancing:
+     *    - Example: Endpoints A and B each have 3 connections (conns_per_endpoint=3)
+     *    - A's server fails, all 3 connections close and trigger supplement_conn
+     *    - A is marked unavailable, first loop skips it
+     *    - B already has 3 connections (>= conns_per_endpoint), first loop skips it too
+     *    - Without fallback: No new connections created, system loses capacity
+     *    - With fallback: Randomly select B and create 4th/5th/6th connection
+     *    - Result: B temporarily exceeds conns_per_endpoint to maintain total capacity
+     *    - Trade-off: Sacrifice load balancing for high availability
+     *
+     * 2. Give unavailable endpoints a chance to recover:
+     *    - Random selection may pick an unavailable endpoint (e.g., A)
+     *    - If A has recovered from transient failure, connection succeeds immediately
+     *    - This provides faster recovery than waiting for recover_endpoint_event (30s timer)
+     *
+     * 3. Connection counting race conditions:
+     *    - Connections in connecting_conns may ultimately fail
+     *    - Connections being closed may still be counted in existing_conns
+     *    - Fallback ensures at least one connection attempt is made
+     *
+     * Note: This logic ignores both unavailable status and conns_per_endpoint limit,
+     * prioritizing system availability over strict connection distribution.
+     */
     int random_index = rand() % worker->endpoints->count;
     tglog_endpoint *ep = worker->endpoints->items[random_index];
     tglog_conn *new_conn = tglog_worker_dial_new_conn(worker, ep->addr, CREATE_BY_SUPPLEMENT, NULL);
