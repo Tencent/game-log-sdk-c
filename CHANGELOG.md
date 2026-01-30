@@ -1,31 +1,41 @@
 # TGLog SDK C 更新日志
 
-## v1.0.0 (2026-01-15)
+## v1.0.0 (2026-01-30)
+
+### 🎉 重要变更
+
+- **移除 Java 绑定**: 删除了 JNI 绑定实现，推荐使用独立的纯 Java 版本 [SDK](https://git.woa.com/tglog/v3/sdk-java)
+  - 删除 `bindings/java/` 目录及所有相关文件
+  - 删除 `bindings/ALL_BINDINGS_COMPARISON.md` 文档
+  - 更新构建脚本和文档，移除 Java 相关引用
+  - 保留 Python 绑定（ctypes、C Extension、Cython）
 
 ### 🐛 Bug 修复
+
 - **批次重试**：
-  - 重试截止时间修改为backoff的累计时间 
+  - 重试截止时间修改为 backoff 的累计时间
   - 重试期间也检查是否发送超时
 
 ### 🔧 优化改进
 
 - **返回值与回调**:
-  - `tglog_client_send` 返回错误码时不触发回调，如果msg_flag传入`TGLOG_MSG_F_FREE`仍然帮调用者释放内存
-- **连接初始化**: 
-  - tglog-st 在服务端节点数小于等于2时，每节点连接数从4改为3，减少连接数并降低内存占用
+  - `tglog_client_send` 返回错误码时不触发回调，如果 msg_flag 传入 `TGLOG_MSG_F_FREE` 仍然帮调用者释放内存
+- **连接初始化**:
+  - tglog-st 在服务端节点数小于等于 2 时，每节点连接数从 4 改为 3，减少连接数并降低内存占用
 - **连接恢复机制增强**:
-  - `emergency_supplement_event` 定时器周期改为5s
+  - `emergency_supplement_event` 定时器周期改为 5s
 - **节点更新处理顺序**:
   - 先处理增加节点再处理删除节点
 - **测试程序改进**：
   - test 程序使用令牌桶控制发送速度
   - test-st 程序使用令牌桶控制发送速度
 
-
 ### 📚 文档更新
 
-- test-tapp 新增UDP场景测试限制说明文档
+- 添加 Java SDK 迁移说明，指向纯 Java 版本
+- test-tapp 新增 UDP 场景测试限制说明文档
 - 增加英文版教程
+- 更新所有文档中的语言绑定说明
 
 ### 🔨 代码质量
 
@@ -33,9 +43,11 @@
 - 删除无用参数
 - 删除无用函数
 
-
-
 ### 🔨 构建与配置
+
+- 简化构建系统，移除 Java 相关构建目标
+- 更新 Makefile 和 CMakeLists.txt
+- 精简 bindings 目录结构
 
 
 
