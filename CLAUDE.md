@@ -10,7 +10,7 @@ TGLog SDK is a high-performance C logging client library designed for efficient 
 - Dual-version architecture: multi-threaded (tglog) for high-throughput servers, single-threaded (tglog-st) for game servers
 - Network protocol support: TCP and UDP with automatic reconnection
 - Lock-free design using ConcurrencyKit for multi-threaded version
-- Language bindings: Java (JNI) and Python (ctypes, C extension, Cython)
+- Language bindings: Python (ctypes, C extension, Cython)
 - Performance: ~1.2M logs/sec (multi-threaded), ~100-200K logs/sec (single-threaded)
 
 **Known Limitations:**
@@ -32,9 +32,8 @@ make deps          # Build dependencies only (jemalloc, libevent, ck)
 make tglog         # Build multi-threaded version
 make tglog-st      # Build single-threaded version
 make test          # Build test programs
-make bindings      # Build all language bindings
-make java          # Build Java bindings only
-make python        # Build Python bindings only
+make bindings      # Build Python bindings
+make python        # Build Python bindings
 
 # Build options
 make RELEASE=1     # Optimized release build
@@ -115,7 +114,6 @@ sdk-c/
 ├── test-st/            # Single-threaded test programs
 ├── test-tapp/          # TAPP framework integration example
 ├── bindings/           # Language bindings
-│   ├── java/           # JNI bindings with DirectByteBuffer support
 │   └── python/         # ctypes, C extension, Cython implementations
 ├── event/              # libevent submodule
 ├── ck/                 # ConcurrencyKit submodule
@@ -174,11 +172,6 @@ cd test-tapp
 ```
 
 ### Language Bindings
-
-**Java (bindings/java/):**
-- JNI binding with DirectByteBuffer zero-copy support
-- Four performance modes (standard, performance, DirectByteBuffer with/without callback)
-- Compile: `make java` or `cd bindings && make java`
 
 **Python (bindings/python/):**
 - Three implementations: ctypes (pure Python), C extension, Cython

@@ -5,7 +5,9 @@
 ![Protocol](https://img.shields.io/badge/Protocol-TCP/UDP-orange.svg)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 
-TGLog SDK is a high-performance C logging client library designed for efficient log transmission. It provides both multi-threaded and single-threaded versions, supporting transmission of 100,000 to 1,000,000 log records per second. The SDK follows the C99 standard, built on libevent and ConcurrencyKit, providing lock-free, high-concurrency log transmission capabilities, with Java and Python language bindings.
+TGLog SDK is a high-performance C logging client library designed for efficient log transmission. It provides both multi-threaded and single-threaded versions, supporting transmission of 100,000 to 1,000,000 log records per second. The SDK follows the C99 standard, built on libevent and ConcurrencyKit, providing lock-free, high-concurrency log transmission capabilities, with Python language bindings.
+
+> Note: For Java support, please use the pure Java version [SDK](https://git.woa.com/tglog/v3/sdk-java)
 
 ## 📝 Known Limitations
 - Windows platform not supported (ConcurrencyKit limitation)
@@ -37,10 +39,7 @@ TGLog SDK is a high-performance C logging client library designed for efficient 
 
 ### 🔌 Multi-Language Support
 - **C/C++**: Native API
-- **Java**: JNI binding with DirectByteBuffer zero-copy support
 - **Python**: Three implementations: ctypes, C extension, and Cython
-
-> Note: A pure Java version [SDK](https://git.woa.com/tglog/v3/sdk-java) is also available
 
 ### ⚙️ Flexible Configuration
 - **Tunable Parameters**: Batch size, timeout, retry count, etc.
@@ -66,7 +65,6 @@ TGLog SDK is a high-performance C logging client library designed for efficient 
 > Note: Windows platform not supported due to ConcurrencyKit not supporting compilation in Visual Studio.
 
 ### Language Binding Requirements
-- **Java**: JDK 8 or higher
 - **Python**: Python 3.6 or higher
 
 ## 🚀 Quick Start
@@ -102,9 +100,8 @@ make deps          # Build dependencies only (jemalloc, libevent, ck)
 make tglog         # Build multi-threaded version only
 make tglog-st      # Build single-threaded version only
 make test          # Build test programs
-make bindings      # Build all language bindings
-make java          # Build Java binding only
-make python        # Build Python binding only
+make bindings      # Build Python bindings
+make python        # Build Python bindings
 
 # Check dependency status
 make check-deps
@@ -134,7 +131,7 @@ make -j4
 # - Core libraries (tglog and tglog-st)
 # - Test programs (multi-threaded and single-threaded versions)
 # - TAPP integration examples
-# - Language bindings (Java and Python)
+# - Language bindings (Python)
 
 # Or build step by step
 make deps -j4                          # Build dependencies only
@@ -252,46 +249,6 @@ gcc your_program.c -o your_program \
 ```
 
 > **Note**: jemalloc must be linked by the final executable, not by TGLog library. This avoids version conflicts.
-
-### Java Usage Example
-
-```java
-import com.tencent.tglog.*;
-
-// Example 1: Standard mode (with callback)
-TglogConfig config = new TglogConfig(TglogConfig.NETWORK_TCP, "dev.tglog.com", 20001)
-    .setWorkerNum(8)
-    .setMaxConnLifetime(300);
-
-try (TglogClient client = new TglogClient(config)) {
-    // Send log
-    client.sendAsync("mylog|field1|field2|field3\n",
-        new TglogCallback() {
-            public void onSuccess(String payload) {
-                System.out.println("Send success");
-            }
-            public void onError(String payload, int code, String msg) {
-                System.err.println("Send failed: " + msg);
-            }
-        });
-
-    // Get statistics
-    TglogStats stats = client.getStats();
-    System.out.println("Success rate: " + stats.getSuccessRate());
-}
-
-// Example 2: DirectByteBuffer high-performance mode (recommended for production)
-try (TglogClient client = new TglogClient(TglogConfig.NETWORK_TCP, "dev.tglog.com", 20001)) {
-    ByteBuffer buffer = TglogClient.createDirectBuffer("mylog|field1|field2\n");
-    int messageLength = "mylog|field1|field2\n".getBytes("UTF-8").length;
-
-    // High-performance send (~1,000,000 msg/s)
-    for (int i = 0; i < 1000000; i++) {
-        buffer.position(0);  // Reset position to reuse buffer
-        client.sendDirect(buffer, messageLength);
-    }
-}
-```
 
 ### Python Usage Example
 
@@ -565,9 +522,8 @@ make tglog         # Build multi-threaded version only
 make tglog-st      # Build single-threaded version only
 make test          # Build test programs
 make test-tapp     # Build TAPP integration example
-make bindings      # Build all language bindings
-make java          # Build Java binding only
-make python        # Build Python binding only
+make bindings      # Build Python bindings
+make python        # Build Python bindings
 
 # Clean targets
 make clean         # Clean build artifacts
@@ -596,27 +552,6 @@ make V=1
 
 ## 🌍 Language Bindings
 
-### Java Binding
-
-TGLog provides complete Java JNI binding supporting high-performance log sending.
-
-**Features**:
-- DirectByteBuffer zero-copy support
-- Thread-safe callback mechanism
-- Four performance modes (standard, performance, DirectByteBuffer no-callback, DirectByteBuffer with-callback)
-- Complete configuration and statistics API
-
-**Performance Mode Comparison** (sending 1,000,000 logs):
-
-| Mode | Send Time | Throughput | Callback Support | Use Case |
-|------|-----------|------------|------------------|----------|
-| DirectByteBuffer no-callback | ~1.0s | ~1,000,000 msg/s | ✗ | Extreme performance |
-| DirectByteBuffer with-callback | ~1.5-2.0s | ~500,000-666,667 msg/s | ✓ | Production recommended |
-| Performance mode | ~3.0s | ~333,333 msg/s | ✓ | Production environment |
-| Standard mode | ~3.5s | ~285,714 msg/s | ✓ | Development debugging |
-
-**Documentation**: See [bindings/java/README.md](bindings/java/README.md)
-
 ### Python Binding
 
 TGLog provides three Python binding implementations:
@@ -632,7 +567,6 @@ TGLog provides three Python binding implementations:
 | **Python Cython** 🏆 | 776.7ms | **1,283,890 msg/s** | **105%** | ⭐⭐⭐⭐⭐ |
 | **C Baseline** | 813.6ms | 1,225,684 msg/s | 100% | ⭐⭐⭐⭐⭐ |
 | **Python C Extension** | 1,049.7ms | 950,718 msg/s | 78% | ⭐⭐⭐⭐ |
-| **Java JNI** | 1,839.0ms | 543,883 msg/s | 44% | ⭐⭐⭐ |
 | **Python ctypes** | 25,887.2ms | 38,615 msg/s | 3% | ❌ |
 
 **Documentation**: See [bindings/python/README.md](bindings/python/README.md)
@@ -803,11 +737,6 @@ sdk-c/
 │   └── DESIGN.md          # Design docs
 │
 ├── bindings/              # Language bindings
-│   ├── ALL_BINDINGS_COMPARISON.md  # All bindings comparison
-│   ├── java/              # Java JNI binding
-│   │   ├── TglogClient.java
-│   │   ├── TglogJNI.c
-│   │   └── README.md
 │   └── python/            # Python bindings
 │       ├── tglog_client.py      # ctypes binding
 │       ├── tglog_ext.c          # C extension
@@ -863,9 +792,7 @@ This project is open-sourced under the MIT License.
 - **Documentation**:
   - Multi-threaded version: [tglog/README.md](tglog/README.md) and [tglog/DESIGN.md](tglog/DESIGN.md)
   - Single-threaded version: [tglog-st/README.md](tglog-st/README.md) and [tglog-st/DESIGN.md](tglog-st/DESIGN.md)
-  - Java binding: [bindings/java/README.md](bindings/java/README.md)
   - Python binding: [bindings/python/README.md](bindings/python/README.md)
-  - All bindings comparison: [bindings/ALL_BINDINGS_COMPARISON.md](bindings/ALL_BINDINGS_COMPARISON.md)
   - CMake build guide: [CMAKE_BUILD_GUIDE.md](CMAKE_BUILD_GUIDE.md)
   - Git Submodules guide: [GIT_SUBMODULES_FAQ.md](GIT_SUBMODULES_FAQ.md)
 - **Examples**: Refer to example code in `test/`, `test-st/`, and `test-tapp/` directories
@@ -888,15 +815,10 @@ This project is open-sourced under the MIT License.
 | **Python Cython** 🏆 | 776.7ms | **1,283,890 msg/s** | **105%** | ⭐⭐⭐⭐⭐ |
 | **C Baseline** | 813.6ms | 1,225,684 msg/s | 100% | ⭐⭐⭐⭐⭐ |
 | **Python C Extension** | 1,049.7ms | 950,718 msg/s | 78% | ⭐⭐⭐⭐ |
-| **Java DirectByteBuffer (no-callback)** | ~1,000ms | ~1,000,000 msg/s | 82% | ⭐⭐⭐⭐ |
-| **Java DirectByteBuffer (with-callback)** | ~1,500-2,000ms | ~500,000-666,667 msg/s | 41-54% | ⭐⭐⭐⭐ |
-| **Java JNI (standard)** | 1,839ms | 543,883 msg/s | 44% | ⭐⭐⭐ |
-| **Java performance mode** | ~3,000ms | ~333,333 msg/s | 27% | ⭐⭐⭐ |
 | **Python ctypes** | 25,887ms | 38,615 msg/s | 3% | ❌ |
 
 **Key Findings**:
 - Python Cython has best performance, even exceeding C baseline by 5%
-- Java DirectByteBuffer no-callback mode can reach 1 million msg/s
 - Python C Extension reaches 78% of C baseline, suitable for production
 - Python ctypes has poor performance, not recommended for production
 

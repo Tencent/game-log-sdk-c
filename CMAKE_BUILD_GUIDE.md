@@ -21,7 +21,7 @@ make -j4
 - 核心库（tglog 和 tglog-st，包括静态库和动态库）
 - 测试程序（多线程和单线程版本）
 - TAPP 集成示例
-- 语言绑定（Java 和 Python）
+- 语言绑定（Python）
 
 **与 Makefile 完全一致**：执行 `make` 会构建所有组件，就像使用原 Makefile 一样。
 
@@ -78,7 +78,7 @@ make -j4
 2. 核心库（tglog 和 tglog-st）
 3. 测试程序（多线程和单线程版本）
 4. TAPP 集成示例
-5. 语言绑定（Java 和 Python）
+5. 语言绑定（Python）
 
 依赖库会被安装到 `thirdparty/` 目录，后续构建会自动跳过。
 
@@ -276,20 +276,16 @@ make -j4
 如果只想构建语言绑定：
 
 ```bash
-# 构建所有语言绑定
+# 构建 Python 绑定
 make bindings -j4
 
-# 或者只构建特定绑定
-make java_bindings      # 只构建 Java
+# 或者
 make python_bindings    # 只构建 Python
 ```
 
 ### 验证构建结果
 
 ```bash
-# 检查 Java 绑定
-ls -lh ../bindings/java/libtglog_jni.so
-
 # 检查 Python 绑定
 ls -lh ../bindings/python/*.so
 ```

@@ -5,7 +5,9 @@
 ![Protocol](https://img.shields.io/badge/Protocol-TCP/UDP-orange.svg)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 
-TGLog SDK 是一个专为高性能日志传输设计的C语言客户端库，提供多线程和单线程两个版本，支持每秒传输10万到100万条日志记录。该SDK遵循C99标准，基于libevent和ConcurrencyKit构建，提供无锁、高并发的日志传输能力，并提供Java和Python语言绑定。
+TGLog SDK 是一个专为高性能日志传输设计的C语言客户端库，提供多线程和单线程两个版本，支持每秒传输10万到100万条日志记录。该SDK遵循C99标准，基于libevent和ConcurrencyKit构建，提供无锁、高并发的日志传输能力，并提供Python语言绑定。
+
+> 说明：如需使用Java，请使用纯Java版本的[SDK](https://git.woa.com/tglog/v3/sdk-java)
 ## 📝 已知限制
 - 不支持 Windows 平台（ConcurrencyKit 限制）
 - 单条日志消息除了结尾不能包含 `\n` 字符，如果日志字段值内部要包含`\n`或`|`，需要把这2个字符转义
@@ -36,10 +38,7 @@ TGLog SDK 是一个专为高性能日志传输设计的C语言客户端库，提
 
 ### 🔌 多语言支持
 - **C/C++**: 原生API
-- **Java**: JNI绑定，支持DirectByteBuffer零拷贝
 - **Python**: 提供ctypes、C扩展和Cython三种实现
-
-> 说明：目前已经有纯JAVA版本的[SDK](https://git.woa.com/tglog/v3/sdk-java)
 
 ### ⚙️ 灵活配置
 - **参数可调**: 批次大小、超时时间、重传次数等
@@ -65,7 +64,6 @@ TGLog SDK 是一个专为高性能日志传输设计的C语言客户端库，提
 > 说明：因ConcurrencyKit不支持在VisualStudio上编译，所以不支持Window平台。
 
 ### 语言绑定要求
-- **Java**: JDK 8或更高版本
 - **Python**: Python 3.6或更高版本
 
 ## 🚀 快速开始
@@ -101,9 +99,8 @@ make deps          # 只编译依赖库 (jemalloc, libevent, ck)
 make tglog         # 只编译多线程版本
 make tglog-st      # 只编译单线程版本
 make test          # 编译测试程序
-make bindings      # 编译所有语言绑定
-make java          # 只编译Java绑定
-make python        # 只编译Python绑定
+make bindings      # 编译Python绑定
+make python        # 编译Python绑定
 
 # 检查依赖状态
 make check-deps
@@ -133,7 +130,7 @@ make -j4
 # - 核心库（tglog 和 tglog-st）
 # - 测试程序（多线程和单线程版本）
 # - TAPP 集成示例
-# - 语言绑定（Java 和 Python）
+# - 语言绑定（Python）
 
 # 或者分步构建
 make deps -j4                          # 只构建依赖库
@@ -251,46 +248,6 @@ gcc your_program.c -o your_program \
 ```
 
 > **注意**: jemalloc必须由最终的可执行程序链接，而不是由TGLog库链接。这样可以避免版本冲突。
-
-### Java使用示例
-
-```java
-import com.tencent.tglog.*;
-
-// 示例 1: 标准模式（带回调）
-TglogConfig config = new TglogConfig(TglogConfig.NETWORK_TCP, "dev.tglog.com", 20001)
-    .setWorkerNum(8)
-    .setMaxConnLifetime(300);
-
-try (TglogClient client = new TglogClient(config)) {
-    // 发送日志
-    client.sendAsync("mylog|field1|field2|field3\n",
-        new TglogCallback() {
-            public void onSuccess(String payload) {
-                System.out.println("发送成功");
-            }
-            public void onError(String payload, int code, String msg) {
-                System.err.println("发送失败: " + msg);
-            }
-        });
-
-    // 获取统计信息
-    TglogStats stats = client.getStats();
-    System.out.println("成功率: " + stats.getSuccessRate());
-}
-
-// 示例 2: DirectByteBuffer 高性能模式（推荐生产环境）
-try (TglogClient client = new TglogClient(TglogConfig.NETWORK_TCP, "dev.tglog.com", 20001)) {
-    ByteBuffer buffer = TglogClient.createDirectBuffer("mylog|field1|field2\n");
-    int messageLength = "mylog|field1|field2\n".getBytes("UTF-8").length;
-
-    // 高性能发送（可达 ~1,000,000 msg/s）
-    for (int i = 0; i < 1000000; i++) {
-        buffer.position(0);  // 重置位置以复用 buffer
-        client.sendDirect(buffer, messageLength);
-    }
-}
-```
 
 ### Python使用示例
 
@@ -564,9 +521,8 @@ make tglog         # 只编译多线程版本
 make tglog-st      # 只编译单线程版本
 make test          # 编译测试程序
 make test-tapp     # 编译TAPP集成示例
-make bindings      # 编译所有语言绑定
-make java          # 只编译Java绑定
-make python        # 只编译Python绑定
+make bindings      # 编译Python绑定
+make python        # 编译Python绑定
 
 # 清理目标
 make clean         # 清理编译产物
@@ -595,27 +551,6 @@ make V=1
 
 ## 🌍 语言绑定
 
-### Java绑定
-
-TGLog提供完整的Java JNI绑定，支持高性能日志发送。
-
-**特性**:
-- DirectByteBuffer零拷贝支持
-- 线程安全的回调机制
-- 四种性能模式（标准、性能、DirectByteBuffer无回调、DirectByteBuffer带回调）
-- 完整的配置和统计API
-
-**性能模式对比** (发送 1,000,000 条日志):
-
-| 模式 | 发送时间 | 吞吐量 | 回调支持 | 适用场景 |
-|------|---------|--------|---------|---------|
-| DirectByteBuffer无回调 | ~1.0秒 | ~1,000,000 msg/s | ✗ | 极限性能 |
-| DirectByteBuffer带回调 | ~1.5-2.0秒 | ~500,000-666,667 msg/s | ✓ | 生产推荐 |
-| 性能模式 | ~3.0秒 | ~333,333 msg/s | ✓ | 生产环境 |
-| 标准模式 | ~3.5秒 | ~285,714 msg/s | ✓ | 开发调试 |
-
-**文档**: 详见 [bindings/java/README.md](bindings/java/README.md)
-
 ### Python绑定
 
 TGLog提供三种Python绑定实现：
@@ -631,7 +566,6 @@ TGLog提供三种Python绑定实现：
 | **Python Cython** 🏆 | 776.7ms | **1,283,890 msg/s** | **105%** | ⭐⭐⭐⭐⭐ |
 | **C 基准** | 813.6ms | 1,225,684 msg/s | 100% | ⭐⭐⭐⭐⭐ |
 | **Python C Extension** | 1,049.7ms | 950,718 msg/s | 78% | ⭐⭐⭐⭐ |
-| **Java JNI** | 1,839.0ms | 543,883 msg/s | 44% | ⭐⭐⭐ |
 | **Python ctypes** | 25,887.2ms | 38,615 msg/s | 3% | ❌ |
 
 **文档**: 详见 [bindings/python/README.md](bindings/python/README.md)
@@ -802,11 +736,6 @@ sdk-c/
 │   └── DESIGN.md          # 设计文档
 │
 ├── bindings/              # 语言绑定
-│   ├── ALL_BINDINGS_COMPARISON.md  # 所有绑定对比
-│   ├── java/              # Java JNI绑定
-│   │   ├── TglogClient.java
-│   │   ├── TglogJNI.c
-│   │   └── README.md
 │   └── python/            # Python绑定
 │       ├── tglog_client.py      # ctypes绑定
 │       ├── tglog_ext.c          # C扩展
@@ -862,9 +791,7 @@ sdk-c/
 - **文档**:
   - 多线程版本: [tglog/README.md](tglog/README.md) 和 [tglog/DESIGN.md](tglog/DESIGN.md)
   - 单线程版本: [tglog-st/README.md](tglog-st/README.md) 和 [tglog-st/DESIGN.md](tglog-st/DESIGN.md)
-  - Java绑定: [bindings/java/README.md](bindings/java/README.md)
   - Python绑定: [bindings/python/README.md](bindings/python/README.md)
-  - 所有绑定对比: [bindings/ALL_BINDINGS_COMPARISON.md](bindings/ALL_BINDINGS_COMPARISON.md)
   - CMake构建指南: [CMAKE_BUILD_GUIDE.md](CMAKE_BUILD_GUIDE.md)
   - Git Submodules指南: [GIT_SUBMODULES_FAQ.md](GIT_SUBMODULES_FAQ.md)
 - **示例**: 参考 `test/`、`test-st/` 和 `test-tapp/` 目录下的示例代码
@@ -887,15 +814,10 @@ sdk-c/
 | **Python Cython** 🏆 | 776.7ms | **1,283,890 msg/s** | **105%** | ⭐⭐⭐⭐⭐ |
 | **C 基准** | 813.6ms | 1,225,684 msg/s | 100% | ⭐⭐⭐⭐⭐ |
 | **Python C Extension** | 1,049.7ms | 950,718 msg/s | 78% | ⭐⭐⭐⭐ |
-| **Java DirectByteBuffer (无回调)** | ~1,000ms | ~1,000,000 msg/s | 82% | ⭐⭐⭐⭐ |
-| **Java DirectByteBuffer (带回调)** | ~1,500-2,000ms | ~500,000-666,667 msg/s | 41-54% | ⭐⭐⭐⭐ |
-| **Java JNI (标准)** | 1,839ms | 543,883 msg/s | 44% | ⭐⭐⭐ |
-| **Java 性能模式** | ~3,000ms | ~333,333 msg/s | 27% | ⭐⭐⭐ |
 | **Python ctypes** | 25,887ms | 38,615 msg/s | 3% | ❌ |
 
 **关键发现**:
 - Python Cython 性能最优，甚至超过 C 基准 5%
-- Java DirectByteBuffer 无回调模式可达 100万 msg/s
 - Python C Extension 达到 C 基准的 78%，适合生产环境
 - Python ctypes 性能较差，不推荐生产使用
 

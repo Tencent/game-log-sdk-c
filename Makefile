@@ -43,7 +43,7 @@ endif
 SUB_DIRS = tglog tglog-st test test-st test-tapp bindings
 DEPS = $(JEMALLOC_LIB) $(EVENT_LIB) $(CK_LIB)
 
-.PHONY: all deps tglog tglog-st test test-tapp examples bindings java python clean clean-deps clean-bindings uninstall check-deps help install init-submodules
+.PHONY: all deps tglog tglog-st test test-tapp examples bindings python clean clean-deps clean-bindings uninstall check-deps help install init-submodules
 
 # Main targets
 all: deps tglog tglog-st test test-tapp bindings
@@ -132,17 +132,12 @@ test-tapp: tglog-st
 
 examples: test
 
-# Build language bindings
+# Build Python bindings
 bindings: tglog
-	$(Q)echo "Building language bindings..."
+	$(Q)echo "Building Python bindings..."
 	$(Q)$(MAKE) -C bindings all RELEASE=$(RELEASE)
 
-# Build only Java bindings
-java: tglog
-	$(Q)echo "Building Java bindings..."
-	$(Q)$(MAKE) -C bindings java RELEASE=$(RELEASE)
-
-# Build only Python bindings
+# Build Python bindings
 python: tglog
 	$(Q)echo "Building Python bindings..."
 	$(Q)$(MAKE) -C bindings python RELEASE=$(RELEASE)
@@ -174,7 +169,6 @@ check-deps:
 	$(Q)echo -n "  tglog-st static lib: "; if [ -f "$(LIB_DIR)/libtglog-st.a" ]; then echo "✓ built"; else echo "✗ missing"; fi
 	$(Q)echo -n "  tglog-st shared lib: "; if [ -f "$(LIB_DIR)/libtglog-st.so" ]; then echo "✓ built"; else echo "✗ missing"; fi
 	$(Q)echo -n "  test-tapp: "; if [ -f "test-tapp/tglog_tapp" ]; then echo "✓ built"; else echo "✗ missing"; fi
-	$(Q)echo -n "  Java JNI lib: "; if [ -f "bindings/libtglog_jni.so" ]; then echo "✓ built"; else echo "✗ missing"; fi
 	$(Q)echo -n "  Python bindings: "; if [ -f "bindings/tglog_client.py" ]; then echo "✓ ready"; else echo "✗ missing"; fi
 
 # Clean targets
@@ -208,7 +202,7 @@ uninstall:
 install: all
 	$(Q)echo "Installing..."
 	$(Q)# Create directory structure
-	$(Q)mkdir -p dist/lib dist/bin dist/include dist/bindings/java dist/bindings/python
+	$(Q)mkdir -p dist/lib dist/bin dist/include dist/bindings/python
 	$(Q)mkdir -p dist/thirdparty/jemalloc dist/thirdparty/event dist/thirdparty/ck
 
 	$(Q)# Install libraries and headers by calling subdirectory makefiles
@@ -224,7 +218,6 @@ install: all
 	
 	$(Q)# Install bindings by calling subdirectory makefiles
 	$(Q)echo "  Installing bindings..."
-	$(Q)$(MAKE) -C bindings/java install 2>/dev/null || true
 	$(Q)$(MAKE) -C bindings/python install 2>/dev/null || true
 	
 	$(Q)# Install third-party dependencies
@@ -293,7 +286,6 @@ install: all
 	$(Q)echo "├── examples/               # Example applications" >> dist/README.md
 	$(Q)echo "│   └── test-tapp/          # TAPP integration example" >> dist/README.md
 	$(Q)echo "├── bindings/               # Language bindings" >> dist/README.md
-	$(Q)echo "│   ├── java/               # Java JNI bindings" >> dist/README.md
 	$(Q)echo "│   └── python/             # Python bindings" >> dist/README.md
 	$(Q)echo "└── thirdparty/             # Dependencies" >> dist/README.md
 	$(Q)echo "    ├── event/              # libevent" >> dist/README.md
@@ -435,7 +427,6 @@ install: all
 	$(Q)echo "" >> dist/README.md
 	$(Q)echo "## Language Bindings" >> dist/README.md
 	$(Q)echo "" >> dist/README.md
-	$(Q)echo "- **Java**: See \`bindings/java/README_JAVA.md\`" >> dist/README.md
 	$(Q)echo "- **Python**: See \`bindings/python/README_PYTHON.md\`" >> dist/README.md
 	$(Q)echo "" >> dist/README.md
 	$(Q)echo "## Documentation" >> dist/README.md
@@ -471,9 +462,8 @@ help:
 	@echo "  test         - Build test programs"
 	@echo "  test-tapp    - Build test-tapp program (TSF4G integration)"
 	@echo "  examples     - Alias for 'test'"
-	@echo "  bindings     - Build all language bindings (Java + Python)"
-	@echo "  java         - Build only Java bindings"
-	@echo "  python       - Build only Python bindings"
+	@echo "  bindings     - Build Python bindings"
+	@echo "  python       - Build Python bindings"
 	@echo "  clean        - Clean build artifacts"
 	@echo "  clean-deps   - Clean and remove dependencies"
 	@echo "  clean-bindings - Clean language bindings"
@@ -497,8 +487,7 @@ help:
 	@echo "  make deps          # Build only dependencies"
 	@echo "  make tglog         # Build TGLog library only"
 	@echo "  make test-tapp     # Build test-tapp only"
-	@echo "  make bindings      # Build language bindings"
-	@echo "  make java          # Build Java bindings only"
-	@echo "  make python        # Build Python bindings only"
+	@echo "  make bindings      # Build Python bindings"
+	@echo "  make python        # Build Python bindings"
 	@echo "  make RELEASE=1     # Build release version"
 	@echo "  make V=1           # Verbose build"

@@ -276,13 +276,6 @@ else()
         COMMENT "Building language bindings..."
         DEPENDS tglog
     )
-    
-    add_custom_target(java
-        COMMAND ${CMAKE_MAKE_PROGRAM} -C ${CMAKE_CURRENT_SOURCE_DIR}/bindings java
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bindings
-        COMMENT "Building Java JNI bindings..."
-        DEPENDS tglog
-    )
 
     add_custom_target(python
         COMMAND ${CMAKE_MAKE_PROGRAM} -C ${CMAKE_CURRENT_SOURCE_DIR}/bindings python
@@ -344,8 +337,6 @@ add_custom_target(check-deps
     COMMAND test -f ${LIB_DIR}/libtglog-st.a && echo "✓ built" || echo "✗ missing"
     COMMAND ${CMAKE_COMMAND} -E echo -n "  tglog-st shared lib: "
     COMMAND test -f ${LIB_DIR}/libtglog-st.so && echo "✓ built" || echo "✗ missing"
-    COMMAND ${CMAKE_COMMAND} -E echo -n "  Java JNI lib: "
-    COMMAND test -f ${CMAKE_CURRENT_SOURCE_DIR}/bindings/java/libtglog_jni.so && echo "✓ built" || echo "✗ missing"
     COMMAND ${CMAKE_COMMAND} -E echo -n "  Python bindings: "
     COMMAND test -f ${CMAKE_CURRENT_SOURCE_DIR}/bindings/python/tglog_client.py && echo "✓ ready" || echo "✗ missing"
     COMMENT "Checking dependencies status..."
@@ -365,8 +356,7 @@ add_custom_target(help_info
     COMMAND ${CMAKE_COMMAND} -E echo "  test-st      - Build single-threaded test programs"
     COMMAND ${CMAKE_COMMAND} -E echo "  test-tapp    - Build TAPP test programs"
     COMMAND ${CMAKE_COMMAND} -E echo "  examples     - Alias for 'test'"
-    COMMAND ${CMAKE_COMMAND} -E echo "  bindings     - Build all language bindings (Java JNI + Python)"
-    COMMAND ${CMAKE_COMMAND} -E echo "  java         - Build only Java JNI bindings"
+    COMMAND ${CMAKE_COMMAND} -E echo "  bindings     - Build all language bindings (Python)"
     COMMAND ${CMAKE_COMMAND} -E echo "  python       - Build only Python bindings"
     COMMAND ${CMAKE_COMMAND} -E echo "  clean        - Clean build artifacts"
     COMMAND ${CMAKE_COMMAND} -E echo "  clean-deps   - Clean and remove dependencies"
@@ -391,7 +381,6 @@ add_custom_target(help_info
     COMMAND ${CMAKE_COMMAND} -E echo "  make deps              # Build only dependencies"
     COMMAND ${CMAKE_COMMAND} -E echo "  make tglog             # Build TGLog library only"
     COMMAND ${CMAKE_COMMAND} -E echo "  make bindings          # Build language bindings"
-    COMMAND ${CMAKE_COMMAND} -E echo "  make java              # Build Java bindings only"
     COMMAND ${CMAKE_COMMAND} -E echo "  make python            # Build Python bindings only"
     COMMAND ${CMAKE_COMMAND} -E echo "  make VERBOSE=1         # Verbose build"
 )
@@ -452,23 +441,6 @@ install(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/test-tapp/tglog_tapp_cfg.xml
     ${CMAKE_CURRENT_SOURCE_DIR}/test-tapp/tlog_cfg.xml
     DESTINATION dist/examples/test-tapp
-    OPTIONAL
-)
-
-# 安装Java bindings
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/bindings/java/libtglog_jni.so
-    DESTINATION dist/bindings/java
-    OPTIONAL
-)
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bindings/java/
-    DESTINATION dist/bindings/java
-    FILES_MATCHING PATTERN "*.java" PATTERN "*.class"
-)
-install(FILES
-    ${CMAKE_CURRENT_SOURCE_DIR}/bindings/java/TglogJNI.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/bindings/java/TglogJNI.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/bindings/java/README.md
-    DESTINATION dist/bindings/java
     OPTIONAL
 )
 
@@ -569,7 +541,6 @@ dist/
 ├── examples/               # Example applications
 │   └── test-tapp/          # TAPP integration example
 ├── bindings/               # Language bindings
-│   ├── java/               # Java JNI bindings
 │   └── python/             # Python bindings
 └── thirdparty/             # Dependencies
     ├── event/              # libevent
@@ -711,7 +682,6 @@ cd examples/test-tapp
 
 ## Language Bindings
 
-- **Java**: See \\\`bindings/java/README_JAVA.md\\\`
 - **Python**: See \\\`bindings/python/README_PYTHON.md\\\`
 
 ## Documentation

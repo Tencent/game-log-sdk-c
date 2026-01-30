@@ -168,10 +168,11 @@
 - ✅ 全局和 Worker 粒度的指标统计
 
 **语言绑定**
-- ✅ Java JNI 绑定: 支持 DirectByteBuffer 零拷贝，性能达到 C 版本的 56%
 - ✅ Python 三种实现: ctypes、C 扩展、Cython
 - ✅ 完整的配置和统计 API
 - ✅ 线程安全的回调机制
+
+> 说明：如需使用Java，请使用纯Java版本的[SDK](https://git.woa.com/tglog/v3/sdk-java)
 
 **构建系统**
 - ✅ Makefile 构建支持，简单易用
@@ -197,7 +198,6 @@
 - `test-tapp/tglog_tapp` - TAPP 框架集成示例
 
 **语言绑定**
-- Java JNI 库和示例代码
 - Python 三种实现（ctypes、C 扩展、Cython）
 
 **文档**
@@ -217,8 +217,7 @@
 **性能指标**
 - 多线程版本: ~100万条/秒 (8 workers)
 - 单线程版本: ~10-20万条/秒
-- Java DirectByteBuffer: ~50-100万条/秒
-- Python Cython: ~90万条/秒
+- Python Cython: ~128万条/秒 (105% of C baseline)
 
 ### 📝 已知限制
 
@@ -248,7 +247,6 @@ cd test
 - [README.md](README.md) - 项目概述和快速开始
 - [tglog/DESIGN.md](tglog/DESIGN.md) - 多线程版本设计文档
 - [tglog-st/DESIGN.md](tglog-st/DESIGN.md) - 单线程版本设计文档
-- [bindings/java/README.md](bindings/java/README.md) - Java 绑定文档
 - [bindings/python/README.md](bindings/python/README.md) - Python 绑定文档
 
 ### 🙏 致谢
