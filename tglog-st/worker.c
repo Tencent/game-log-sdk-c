@@ -1962,7 +1962,6 @@ void tglog_worker_destroy(tglog_worker *worker) {
     /* Destroy tmp_message if exists */
     if (worker->tmp_message) {
         tglog_message_done(worker->tmp_message, TGLOG_ERR_PRODUCER_CLOSED);
-        tglog_message_destroy(worker->tmp_message);
     }
 
     /* Free tmp_iov if exists */
