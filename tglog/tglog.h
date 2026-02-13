@@ -35,29 +35,6 @@ extern "C" {
 /* Thread-safety note */
 #define TGLOG_THREAD_SAFE 1
 
-/* Convenience macros */
-#ifndef TGLOG_NO_SHORTCUTS
-
-/* Quick client creation with default config */
-#define tglog_quick_create(network, host, port) \
-    ({ \
-        tglog_conf conf = tglog_conf_default();    \
-        conf.network = (network); \
-        conf.host = (host); \
-        conf.port = (port); \
-        tglog_client_create(&conf); \
-    })
-
-/* Send with auto-copy flag */
-#define tglog_send_copy(client, msg, callback, user_data) \
-    tglog_client_send((client), (msg), strlen(msg), (callback), (user_data), TGLOG_MSG_F_COPY)
-
-/* Send with zero-copy flag */
-#define tglog_send_nocopy(client, msg, len, callback, user_data) \
-    tglog_client_send((client), (msg), (len), (callback), (user_data), TGLOG_MSG_F_NONE)
-
-#endif /* TGLOG_NO_SHORTCUTS */
-
 #ifdef __cplusplus
 }
 #endif
