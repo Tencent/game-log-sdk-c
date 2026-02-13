@@ -85,8 +85,9 @@ void tglog_std_write_log(void *user_data, tglog_level level, const char *file, c
     struct timeval tv;
     gettimeofday(&tv, NULL);
 
+    struct tm time_info_buf;
     struct tm *time_info;
-    time_info = localtime(&tv.tv_sec);
+    time_info = localtime_r(&tv.tv_sec, &time_info_buf);
 
     char time_buffer[64];
     const char *time_format = "%Y-%m-%d %H:%M:%S";
