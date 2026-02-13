@@ -46,7 +46,7 @@ void tglog_conn_close(tglog_conn *conn) {
 
     if (conn->bev) {
         bufferevent_free(conn->bev);
-    } else if (conn->fd) {
+    } else if (conn->fd >= 0) {
         evutil_closesocket(conn->fd);
     }
 
