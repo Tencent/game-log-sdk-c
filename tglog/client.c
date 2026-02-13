@@ -1,4 +1,5 @@
 /* Standard library headers */
+#include <signal.h>
 
 /* System headers */
 
@@ -47,6 +48,14 @@ static void tglog_client_on_endpoint_updated(const tglog_endpoint_list *all,
 tglog_client *tglog_client_create(const tglog_conf *conf) {
     if (!conf || !conf->host[0] || conf->port <= 0 || conf->port > 65535) {
         return NULL;
+    }
+
+    /* Ignore SIGPIPE to prevent process crash when writing to a closed socket.
+     * writev() cannot use MSG_NOSIGNAL, so we must ignore SIGPIPE globally.
+     * Only set SIG_IGN if the process has not installed a custom handler. */
+    struct sigaction sa;
+    if (sigaction(SIGPIPE, NULL, &sa) == 0 && sa.sa_handler == SIG_DFL) {
+        signal(SIGPIPE, SIG_IGN);
     }
 
     tglog_client *client = (tglog_client *) calloc(1, sizeof(tglog_client));
