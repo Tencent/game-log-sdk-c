@@ -1,6 +1,6 @@
 # TGLog SDK C 更新日志
 
-## v1.0.0 (2026-01-30)
+## v1.0.0 (2026-02-13)
 
 ### 🎉 重要变更
 
@@ -10,11 +10,27 @@
   - 更新构建脚本和文档，移除 Java 相关引用
   - 保留 Python 绑定（ctypes、C Extension、Cython）
 
+### ✨ 新特性
+
+- **IPv6 支持**: endpoint 连接支持 IPv6 地址
+
 ### 🐛 Bug 修复
 
 - **批次重试**：
   - 重试截止时间修改为 backoff 的累计时间
   - 重试期间也检查是否发送超时
+- **内存安全**:
+  - 修复 `tmp_message` 双重释放问题
+  - 修复连接关闭时潜在的 fd 泄漏
+  - 修复 `tglog_conn_create` 中 `strdup` 返回值未检查的问题
+- **线程安全**:
+  - 修复 `localtime()` 非线程安全问题，改用 `localtime_r()`（tglog、tglog-st）
+  - 修复 `rand()` 非线程安全问题，改用 `rand_r()` 配合 per-worker seed（tglog、tglog-st）
+- **连接管理**:
+  - 修复创建 bufferevent 时 `BEV_OPT_CLOSE_ON_FREE` 导致的 socket 双重关闭（tglog、tglog-st）
+  - 修复 `retry_deadline.tv_usec` 潜在溢出问题
+- **信号处理**:
+  - 忽略 SIGPIPE 信号，避免写入已关闭连接时进程被终止
 
 ### 🔧 优化改进
 
@@ -26,6 +42,8 @@
   - `emergency_supplement_event` 定时器周期改为 5s
 - **节点更新处理顺序**:
   - 先处理增加节点再处理删除节点
+- **日志输出**:
+  - 将调试日志的多次 `fprintf` 合并为单次 `fputs` 写入，避免多线程下日志交错（tglog、tglog-st）
 - **测试程序改进**：
   - test 程序使用令牌桶控制发送速度
   - test-st 程序使用令牌桶控制发送速度
@@ -42,6 +60,10 @@
 - 修复静态代码检查问题
 - 删除无用参数
 - 删除无用函数
+- 删除快捷宏定义
+- 为 `debug_logger` 中的字符串字面量指针添加 `const` 修饰
+- 修正 `size_t` 变量的无符号比较警告
+- 修正 tglog-st client 中的类型不匹配问题
 
 ### 🔨 构建与配置
 
