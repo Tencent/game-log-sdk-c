@@ -199,7 +199,7 @@ int tglog_client_send(tglog_client *client, const char *log_payload, tglog_send_
     }
 
     int ret = tglog_worker_send(worker, log_payload, callback, user_data, msg_flag);
-    if ((int) tglog_worker_get_msg_queue_size(worker) >= client->conf.batching_max_messages) {
+    if (tglog_worker_get_msg_queue_size(worker) >= (size_t) client->conf.batching_max_messages) {
         tglog_client_update(client);
     }
 
@@ -312,7 +312,7 @@ int tglog_client_update(tglog_client *client) {
     tglog_metrics_set_max_update_time(client->metrics, total_update_time);
     /* Check if update timeout */
     if ((int64_t) total_update_time > client->conf.max_update_us) {
-        tglog_debug(client->logger, "Update took %llu/%llu/%llu(event_dispatch_time/total_time/limit_time) us, dispatched %d messages",
+        tglog_debug(client->logger, "Update took %llu/%llu/%d(event_dispatch_time/total_time/limit_time) us, dispatched %d messages",
                     (unsigned long long) event_dispatch_time, (unsigned long long) total_update_time, client->conf.max_update_us, msg_dispatched);
         tglog_metrics_inc_timeout_update_count(client->metrics, 1);
     }
