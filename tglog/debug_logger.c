@@ -89,7 +89,7 @@ void tglog_std_write_log(void *user_data, tglog_level level, const char *file, c
     time_info = localtime(&tv.tv_sec);
 
     char time_buffer[64];
-    char *time_format = "%Y-%m-%d %H:%M:%S";
+    const char *time_format = "%Y-%m-%d %H:%M:%S";
     strftime(time_buffer, sizeof(time_buffer), time_format, time_info);
     snprintf(time_buffer + 19, sizeof(time_buffer) - 19, ".%06ld", (long) tv.tv_usec);
 
