@@ -2120,7 +2120,7 @@ int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_
 
     size_t log_payload_len = strlen(log_payload);
     /* Check log_payload validity */
-    if (log_payload_len <= 0) {
+    if (log_payload_len == 0) {
         tglog_error(worker->logger, "Invalid argument, log_payload is empty, worker: %d", worker->id);
         // no need to callback
         if (msg_flag == TGLOG_MSG_F_FREE) {

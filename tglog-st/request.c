@@ -16,7 +16,7 @@
 tglog_message *tglog_message_create(tglog_mem_pool *mem_pool, const char *payload, size_t len,
                                     tglog_msg_callback callback, void *user_data,
                                     tglog_msg_flag flag, tglog_metrics *metrics, int worker_id) {
-    if (!payload || len <= 0) {
+    if (!payload || len == 0) {
         return NULL;
     }
 
