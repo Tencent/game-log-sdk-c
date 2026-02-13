@@ -94,16 +94,24 @@ void tglog_std_write_log(void *user_data, tglog_level level, const char *file, c
     strftime(time_buffer, sizeof(time_buffer), time_format, time_info);
     snprintf(time_buffer + 19, sizeof(time_buffer) - 19, ".%06ld", (long) tv.tv_usec);
 
-    fprintf(stdout, "[%s] [%s] [%s:%d] [%s()]: ",
+    char log_buffer[4096];
+    int offset = snprintf(log_buffer, sizeof(log_buffer), "[%s] [%s] [%s:%d] [%s()]: ",
             time_buffer,
             level_to_string(level),
             file, line, func);
 
-    va_list args;
-    va_start(args, format);
-    vfprintf(stdout, format, args);
-    va_end(args);
+    if (offset >= 0 && (size_t)offset < sizeof(log_buffer)) {
+        va_list args;
+        va_start(args, format);
+        offset += vsnprintf(log_buffer + offset, sizeof(log_buffer) - offset, format, args);
+        va_end(args);
+    }
 
-    fprintf(stdout, "\n");
+    if (offset >= 0 && (size_t)offset < sizeof(log_buffer) - 1) {
+        log_buffer[offset++] = '\n';
+        log_buffer[offset] = '\0';
+    }
+
+    fputs(log_buffer, stdout);
     fflush(stdout);
 }
