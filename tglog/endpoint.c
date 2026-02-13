@@ -20,7 +20,12 @@ tglog_endpoint *tglog_endpoint_create(const char *host, int port) {
     ep->host = strdup(host);
     ep->port = port;
     char addr[256];
-    snprintf(addr, sizeof(addr), "%s:%d", host, port);
+    /* Use [host]:port format for IPv6 addresses (those containing ':') */
+    if (strchr(host, ':')) {
+        snprintf(addr, sizeof(addr), "[%s]:%d", host, port);
+    } else {
+        snprintf(addr, sizeof(addr), "%s:%d", host, port);
+    }
     ep->addr = strdup(addr);
 
     return ep;

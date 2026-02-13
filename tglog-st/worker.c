@@ -610,25 +610,47 @@ static bool tglog_worker_parse_host_port(tglog_worker *worker, const char *addr,
         return false;
     }
 
-    /* Find colon separator */
-    const char *colon = strrchr(addr, ':');
-    if (!colon) {
-        tglog_error(worker->logger, "Invalid address format, should be host:port, got: %s", addr);
-        return false;
+    const char *host_start;
+    const char *host_end;
+    const char *port_str;
+
+    if (addr[0] == '[') {
+        /* IPv6 format: [host]:port */
+        host_start = addr + 1;
+        host_end = strchr(host_start, ']');
+        if (!host_end) {
+            tglog_error(worker->logger, "Invalid IPv6 address format, missing ']', got: %s", addr);
+            return false;
+        }
+        if (host_end[1] != ':') {
+            tglog_error(worker->logger, "Invalid IPv6 address format, expected ']:port', got: %s", addr);
+            return false;
+        }
+        port_str = host_end + 2;
+    } else {
+        /* IPv4 format: host:port */
+        host_start = addr;
+        const char *colon = strrchr(addr, ':');
+        if (!colon) {
+            tglog_error(worker->logger, "Invalid address format, should be host:port, got: %s", addr);
+            return false;
+        }
+        host_end = colon;
+        port_str = colon + 1;
     }
 
     /* Copy host part */
-    size_t host_length = colon - addr;
+    size_t host_length = host_end - host_start;
     if (host_length >= host_size) {
         tglog_error(worker->logger, "Host buffer too small for: %s", addr);
         return false;
     }
 
-    strncpy(host, addr, host_length);
+    strncpy(host, host_start, host_length);
     host[host_length] = '\0';
 
     /* Parse port */
-    *port = atoi(colon + 1);
+    *port = atoi(port_str);
     if (*port <= 0 || *port > 65535) {
         tglog_error(worker->logger, "Invalid port in address: %s", addr);
         return false;
@@ -637,9 +659,9 @@ static bool tglog_worker_parse_host_port(tglog_worker *worker, const char *addr,
     return true;
 }
 
-static int tglog_worker_init_socket(tglog_worker *worker, char *addr) {
+static int tglog_worker_init_socket(tglog_worker *worker, char *addr, int af) {
     int sock_type = (worker->client->conf.network == TGLOG_NETWORK_TCP) ? SOCK_STREAM : SOCK_DGRAM;
-    int sock = socket(AF_INET, sock_type, 0);
+    int sock = socket(af, sock_type, 0);
 
     if (sock < 0) {
         tglog_error(worker->logger, "Failed to create socket for %s: %s, worker: %d",
@@ -696,9 +718,12 @@ static tglog_conn *tglog_worker_dial_new_conn(tglog_worker *worker, char *addr, 
         return NULL;
     }
 
+    /* Detect address family */
+    int af = strchr(host, ':') ? AF_INET6 : AF_INET;
+
     /* Initialize socket */
     char *network = worker->client->conf.network == TGLOG_NETWORK_TCP ? "tcp" : "udp";
-    int sock = tglog_worker_init_socket(worker, addr);
+    int sock = tglog_worker_init_socket(worker, addr, af);
     if (sock < 0) {
         tglog_error(worker->logger, "Create socket failed, worker: %d, addr: %s://%s, errno: %d",
                     worker->id, network, addr, errno);
@@ -740,13 +765,25 @@ static tglog_conn *tglog_worker_dial_new_conn(tglog_worker *worker, char *addr, 
     /* bufferevent_enable(bev, EV_READ); */
 
     /* Prepare address and connect */
-    struct sockaddr_in serv_addr;
+    struct sockaddr_storage serv_addr;
+    socklen_t addr_len;
     memset(&serv_addr, 0, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(port);
-    inet_pton(AF_INET, host, &serv_addr.sin_addr);
 
-    if (bufferevent_socket_connect(bev, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
+    if (af == AF_INET6) {
+        struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *) &serv_addr;
+        sin6->sin6_family = AF_INET6;
+        sin6->sin6_port = htons(port);
+        inet_pton(AF_INET6, host, &sin6->sin6_addr);
+        addr_len = sizeof(struct sockaddr_in6);
+    } else {
+        struct sockaddr_in *sin4 = (struct sockaddr_in *) &serv_addr;
+        sin4->sin_family = AF_INET;
+        sin4->sin_port = htons(port);
+        inet_pton(AF_INET, host, &sin4->sin_addr);
+        addr_len = sizeof(struct sockaddr_in);
+    }
+
+    if (bufferevent_socket_connect(bev, (struct sockaddr *) &serv_addr, addr_len) < 0) {
         tglog_error(worker->logger, "Connect to server error, worker: %d, addr: %s://%s, errno: %d",
                     worker->id, network, addr, evutil_socket_geterror(sock));
         /* tglog_conn_close will free bev */
