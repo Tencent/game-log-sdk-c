@@ -26,6 +26,10 @@ tglog_conn *tglog_conn_create(tglog_worker *worker, tglog_conn_create_type creat
     conn->create_type = create_type;
     conn->network = network;
     conn->endpoint = strdup(endpoint);
+    if (!conn->endpoint) {
+        free(conn);
+        return NULL;
+    }
     conn->fd = fd;
     conn->bev = bev;
     conn->user_data = user_data;
