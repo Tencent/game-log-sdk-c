@@ -73,6 +73,7 @@ typedef struct tglog_worker {
 
     uint32_t state;                                 /* worker state */
     uint64_t drain_and_stop_time;                   /* time when drain and stop started */
+    unsigned int rand_seed;                         /* per-worker random seed for rand_r */
 } tglog_worker;
 
 /**

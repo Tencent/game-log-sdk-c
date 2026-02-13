@@ -266,14 +266,14 @@ size_t tglog_batch_len(tglog_batch *batch) {
     return batch->len;
 }
 
-unsigned int tglog_backoff_next_interval(tglog_backoff *b, int retry_count, bool bound_max) {
+unsigned int tglog_backoff_next_interval(tglog_backoff *b, int retry_count, bool bound_max, unsigned int *rand_seed) {
     if (retry_count <= 0) {
         return b->initial_interval;
     }
 
     double interval = b->initial_interval * pow(b->multiplier, retry_count - 1);
     if (b->randomization > 0) {
-        double random_factor = (rand() / (double) RAND_MAX) * 2 - 1;
+        double random_factor = (rand_r(rand_seed) / (double) RAND_MAX) * 2 - 1;
         interval = interval * (1 + b->randomization * random_factor);
     }
 
@@ -284,14 +284,14 @@ unsigned int tglog_backoff_next_interval(tglog_backoff *b, int retry_count, bool
     return (unsigned int) interval;
 }
 
-unsigned int tglog_backoff_get_total_backoff_time(tglog_backoff *b, int retry_count){
+unsigned int tglog_backoff_get_total_backoff_time(tglog_backoff *b, int retry_count, unsigned int *rand_seed){
     if (retry_count <= 0) {
         return 0;
     }
 
     unsigned int total = 0;
     for (int i = 1; i <= retry_count; i++) {
-        total += tglog_backoff_next_interval(b, i, true);
+        total += tglog_backoff_next_interval(b, i, true, rand_seed);
     }
     return total;
 }

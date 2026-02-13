@@ -180,18 +180,20 @@ typedef struct tglog_backoff {
  * @param b The backoff.
  * @param retry_count The retry count.
  * @param bound_max Whether to bound the interval by the max interval.
+ * @param rand_seed The random seed for rand_r.
  * @return The next interval.
  */
-unsigned int tglog_backoff_next_interval(tglog_backoff *b, int retry_count, bool bound_max);
+unsigned int tglog_backoff_next_interval(tglog_backoff *b, int retry_count, bool bound_max, unsigned int *rand_seed);
 
 /**
  * Get the total backoff time by retry count.
  *
  * @param b The backoff.
  * @param retry_count The retry count.
+ * @param rand_seed The random seed for rand_r.
  * @return The total backoff time.
  */
-unsigned int tglog_backoff_get_total_backoff_time(tglog_backoff *b, int retry_count);
+unsigned int tglog_backoff_get_total_backoff_time(tglog_backoff *b, int retry_count, unsigned int *rand_seed);
 
 /* Forward declaration */
 typedef struct tglog_endpoint_list tglog_endpoint_list;

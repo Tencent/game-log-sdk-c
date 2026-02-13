@@ -426,7 +426,7 @@ static bool tglog_worker_supplement_conn(tglog_worker *worker) {
      * Note: This logic ignores both unavailable status and conns_per_endpoint limit,
      * prioritizing system availability over strict connection distribution.
      */
-    int random_index = rand() % worker->endpoints->count;
+    int random_index = rand_r(&worker->rand_seed) % worker->endpoints->count;
     tglog_endpoint *ep = worker->endpoints->items[random_index];
     tglog_conn *new_conn = tglog_worker_dial_new_conn(worker, ep->addr, CREATE_BY_SUPPLEMENT, NULL);
     if (!new_conn) {
@@ -903,7 +903,7 @@ static void tglog_worker_recover_endpoints(evutil_socket_t fd, short what, void 
         time_t unavailable_time = (time_t) (uintptr_t) ck_ht_entry_value(cursor);
         int retry_count = tglog_worker_get_endpoint_retry_count(worker, key_ptr);
         time_t now = time(NULL);
-        unsigned int next_retry_time = tglog_backoff_next_interval(&tglog_endpoint_recover_backoff, retry_count, true);
+        unsigned int next_retry_time = tglog_backoff_next_interval(&tglog_endpoint_recover_backoff, retry_count, true, &worker->rand_seed);
 
         if ((now - unavailable_time) > next_retry_time) {
             /* Try to create connections when recovering */
@@ -1050,7 +1050,7 @@ static void tglog_worker_start_retrying(tglog_worker *worker) {
 
     tglog_metrics_inc_retry_msg_count(worker->metrics, worker->id, 1);
     worker->tmp_batch->retries++;
-    unsigned int backoff_time = tglog_backoff_next_interval(&tglog_batch_retry_backoff, worker->tmp_batch->retries, true);
+    unsigned int backoff_time = tglog_backoff_next_interval(&tglog_batch_retry_backoff, worker->tmp_batch->retries, true, &worker->rand_seed);
 
     struct timeval tv;
     tv.tv_sec = backoff_time / 1000;
@@ -1063,7 +1063,7 @@ static void tglog_worker_start_retrying(tglog_worker *worker) {
 
     if (worker->tmp_batch->retries == 1) {
         gettimeofday(&worker->tmp_batch->retry_start_time, NULL);
-        unsigned int deadline_time = tglog_backoff_get_total_backoff_time(&tglog_batch_retry_backoff, worker->client->conf.max_retries + 1);
+        unsigned int deadline_time = tglog_backoff_get_total_backoff_time(&tglog_batch_retry_backoff, worker->client->conf.max_retries + 1, &worker->rand_seed);
         long total_usec = worker->tmp_batch->retry_start_time.tv_usec + (deadline_time % 1000) * 1000;
         worker->tmp_batch->retry_deadline.tv_sec = worker->tmp_batch->retry_start_time.tv_sec + deadline_time / 1000 + total_usec / 1000000;
         worker->tmp_batch->retry_deadline.tv_usec = total_usec % 1000000;
@@ -1661,6 +1661,7 @@ tglog_worker *tglog_worker_create(int id, tglog_client *client) {
     worker->metrics = client->metrics;
     ck_pr_store_32(&worker->state, TGLOG_WORKER_STATE_INIT);
     worker->last_emergency_supplement_time = 0;  /* Initialize to 0, allow first supplement immediately */
+    worker->rand_seed = (unsigned int)(time(NULL) ^ (id * 2654435761u));
 
     /* Init delay close conns, unavailable endpoints, endpoint retry counts hash table */
     ck_ht_init(&worker->delay_close_conns, CK_HT_MODE_DIRECT, NULL, &tglog_ck_allocator, 8, 20250606);

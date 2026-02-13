@@ -83,6 +83,7 @@ typedef struct tglog_worker {
     pthread_mutex_t ready_lock;                     /* worker ready lock */
 #endif
     uint64_t drain_and_stop_time;                   /* time when drain and stop started */
+    unsigned int rand_seed;                         /* per-worker random seed for rand_r */
 } tglog_worker;
 
 /**

@@ -33,7 +33,7 @@ tglog_conn *tglog_conn_create(tglog_worker *worker, tglog_conn_create_type creat
     conn->fd = fd;
     conn->bev = bev;
     conn->user_data = user_data;
-    int jitter = rand() % max_jitter; // 0 ~ max_jitter-1
+    int jitter = rand_r(&worker->rand_seed) % max_jitter; // 0 ~ max_jitter-1
     conn->expire_time = time(NULL) + max_lifetime + jitter;
     conn->write_high_watermark = write_high_watermark > 0 ? write_high_watermark : TGLOG_DEFAULT_WRITE_HIGH_WATERMARK;
     return conn;
