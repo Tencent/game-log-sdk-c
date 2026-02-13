@@ -794,8 +794,7 @@ static tglog_conn *tglog_worker_dial_new_conn(tglog_worker *worker, char *addr, 
     tglog_conn *conn = tglog_conn_create(worker, create_type, worker->client->conf.network, addr, sock, bev, user_data,
                                          worker->client->conf.write_high_watermark, worker->client->conf.max_conn_lifetime);
     if (!conn) {
-        bufferevent_free(bev);
-        evutil_closesocket(sock);
+        bufferevent_free(bev); /* BEV_OPT_CLOSE_ON_FREE will close sock */
         return NULL;
     }
 
