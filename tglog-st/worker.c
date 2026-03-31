@@ -957,6 +957,14 @@ static void tglog_worker_replace_expired_conns(evutil_socket_t fd, short what, v
     }
 }
 
+/* Thread-safety note:
+ * In the single-threaded build, tglog_worker_get_conn() is only called from the
+ * owning client thread/update loop (for example tglog_client_update(), libevent
+ * callbacks running on the same event_base, and shutdown paths on that thread).
+ * Other threads must not touch worker->conns directly, and tglog-st itself is not
+ * a thread-safe API. Under that ownership model, the non-atomic reads of
+ * worker->conns->count and worker->conns->items here are intentional.
+ */
 static tglog_conn *tglog_worker_get_conn(tglog_worker *worker) {
     if (worker->conns->count <= 0) {
         tglog_fatal(worker->logger, "No available connections, worker: %d", worker->id);
