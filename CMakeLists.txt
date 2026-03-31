@@ -20,11 +20,6 @@ set(EVENT_INSTALL_DIR ${CURRENT_DIR}/thirdparty/event)
 set(EVENT_LIB ${EVENT_INSTALL_DIR}/lib/libevent.a)
 set(EVENT_VERSION "release-2.1.12-stable")
 
-set(CK_SRC_DIR ${CURRENT_DIR}/ck)
-set(CK_INSTALL_DIR ${CURRENT_DIR}/thirdparty/ck)
-set(CK_LIB ${CK_INSTALL_DIR}/lib/libck.a)
-set(CK_VERSION "0.7.2")
-
 set(LIB_DIR ${CURRENT_DIR}/lib)
 
 # 编译器设置
@@ -43,7 +38,6 @@ option(BUILD_SHARED "Build shared library" ON)
 # 创建必要的目录
 file(MAKE_DIRECTORY ${JEMALLOC_INSTALL_DIR})
 file(MAKE_DIRECTORY ${EVENT_INSTALL_DIR})
-file(MAKE_DIRECTORY ${CK_INSTALL_DIR})
 file(MAKE_DIRECTORY ${LIB_DIR})
 
 # 检查依赖是否存在
@@ -52,9 +46,7 @@ message(STATUS "Checking dependencies...")
 # 检查目录是否存在且不为空
 file(GLOB JEMALLOC_FILES "${JEMALLOC_SRC_DIR}/*")
 file(GLOB EVENT_FILES "${EVENT_SRC_DIR}/*")
-file(GLOB CK_FILES "${CK_SRC_DIR}/*")
-
-if(NOT JEMALLOC_FILES OR NOT EVENT_FILES OR NOT CK_FILES)
+if(NOT JEMALLOC_FILES OR NOT EVENT_FILES)
     message(STATUS "Dependencies not found, initializing...")
 
     # 检查是否在 git 仓库中
@@ -126,25 +118,6 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
         endif()
     endif()
 
-    # Check and checkout ck
-    if(EXISTS ${CK_SRC_DIR}/.git)
-        execute_process(
-            COMMAND git describe --tags --exact-match
-            WORKING_DIRECTORY ${CK_SRC_DIR}
-            OUTPUT_VARIABLE CK_CURRENT
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            ERROR_QUIET
-        )
-        if(NOT CK_CURRENT STREQUAL CK_VERSION)
-            message(STATUS "  ck: ${CK_CURRENT} -> ${CK_VERSION}")
-            execute_process(
-                COMMAND git checkout ${CK_VERSION}
-                WORKING_DIRECTORY ${CK_SRC_DIR}
-                OUTPUT_QUIET ERROR_QUIET
-            )
-        endif()
-    endif()
-
     message(STATUS "Submodules checked out to specified versions")
 else()
     message(STATUS "Using downloaded dependencies (version check skipped)")
@@ -183,22 +156,6 @@ if(NOT EXISTS ${EVENT_LIB})
 else()
     # 如果库已存在，创建一个空目标
     add_custom_target(libevent_build)
-endif()
-
-# 构建 Concurrency Kit
-if(NOT EXISTS ${CK_LIB})
-    ExternalProject_Add(
-        ck_build
-        SOURCE_DIR ${CK_SRC_DIR}
-        CONFIGURE_COMMAND cd ${CK_SRC_DIR} && ./configure --prefix=${CK_INSTALL_DIR}
-        BUILD_COMMAND cd ${CK_SRC_DIR} && make
-        INSTALL_COMMAND cd ${CK_SRC_DIR} && make install
-        BUILD_IN_SOURCE 1
-        BUILD_ALWAYS 0
-    )
-else()
-    # 如果库已存在，创建一个空目标
-    add_custom_target(ck_build)
 endif()
 
 # 导入构建的库作为 IMPORTED 目标
@@ -242,20 +199,12 @@ target_include_directories(event_sources INTERFACE
     $<BUILD_INTERFACE:${EVENT_INSTALL_DIR}/include>
 )
 
-add_library(ck STATIC IMPORTED)
-set_target_properties(ck PROPERTIES IMPORTED_LOCATION ${CK_LIB})
-target_include_directories(ck INTERFACE
-    $<BUILD_INTERFACE:${CK_INSTALL_DIR}/include>
-)
-add_dependencies(ck ck_build)
-
 # 在添加子目录之前，确保依赖库的目录存在
 # 这样可以避免 CMake 配置时检查路径不存在的错误
 # 注意：这些目录会在实际构建依赖库时被填充
 
 # 创建占位目录（如果不存在）
 file(MAKE_DIRECTORY ${EVENT_INSTALL_DIR}/include)
-file(MAKE_DIRECTORY ${CK_INSTALL_DIR}/include)
 file(MAKE_DIRECTORY ${JEMALLOC_INSTALL_DIR}/include)
 
 # 添加子目录
@@ -293,13 +242,13 @@ endif()
 
 # 主目标
 add_custom_target(deps
-    DEPENDS jemalloc_build libevent_build ck_build
+    DEPENDS jemalloc_build libevent_build
     COMMENT "Building dependencies..."
 )
 
 # 创建一个 all_deps 目标，确保所有子项目都依赖它
 add_custom_target(all_deps ALL
-    DEPENDS jemalloc_build libevent_build ck_build
+    DEPENDS jemalloc_build libevent_build
     COMMENT "Ensuring all dependencies are built..."
 )
 
@@ -307,10 +256,8 @@ add_custom_target(all_deps ALL
 add_custom_target(clean-deps
     COMMAND ${CMAKE_COMMAND} -E remove_directory ${JEMALLOC_INSTALL_DIR}
     COMMAND ${CMAKE_COMMAND} -E remove_directory ${EVENT_INSTALL_DIR}
-    COMMAND ${CMAKE_COMMAND} -E remove_directory ${CK_INSTALL_DIR}
     COMMAND cd ${JEMALLOC_SRC_DIR} && make clean
     COMMAND cd ${EVENT_SRC_DIR} && make clean
-    COMMAND cd ${CK_SRC_DIR} && make clean
     COMMENT "Cleaning dependencies..."
 )
 
@@ -327,8 +274,6 @@ add_custom_target(check-deps
     COMMAND test -f ${JEMALLOC_LIB} && echo "✓ built" || echo "✗ missing"
     COMMAND ${CMAKE_COMMAND} -E echo -n "  libevent: "
     COMMAND test -f ${EVENT_LIB} && echo "✓ built" || echo "✗ missing"
-    COMMAND ${CMAKE_COMMAND} -E echo -n "  ck: "
-    COMMAND test -f ${CK_LIB} && echo "✓ built" || echo "✗ missing"
     COMMAND ${CMAKE_COMMAND} -E echo -n "  tglog static lib: "
     COMMAND test -f ${LIB_DIR}/libtglog.a && echo "✓ built" || echo "✗ missing"
     COMMAND ${CMAKE_COMMAND} -E echo -n "  tglog shared lib: "
@@ -349,7 +294,7 @@ add_custom_target(help_info
     COMMAND ${CMAKE_COMMAND} -E echo ""
     COMMAND ${CMAKE_COMMAND} -E echo "Available targets:"
     COMMAND ${CMAKE_COMMAND} -E echo "  all          - Build everything (dependencies + TGLog + tests + bindings)"
-    COMMAND ${CMAKE_COMMAND} -E echo "  deps         - Build only dependencies (jemalloc, libevent, ck)"
+    COMMAND ${CMAKE_COMMAND} -E echo "  deps         - Build only dependencies (jemalloc, libevent)"
     COMMAND ${CMAKE_COMMAND} -E echo "  tglog        - Build TGLog library (static and shared)"
     COMMAND ${CMAKE_COMMAND} -E echo "  tglog-st     - Build TGLog single-threaded library"
     COMMAND ${CMAKE_COMMAND} -E echo "  test         - Build test programs"
@@ -373,7 +318,6 @@ add_custom_target(help_info
     COMMAND ${CMAKE_COMMAND} -E echo "Submodule versions (auto-initialized):"
     COMMAND ${CMAKE_COMMAND} -E echo "  jemalloc: ${JEMALLOC_VERSION}"
     COMMAND ${CMAKE_COMMAND} -E echo "  libevent: ${EVENT_VERSION}"
-    COMMAND ${CMAKE_COMMAND} -E echo "  ck:       ${CK_VERSION}"
     COMMAND ${CMAKE_COMMAND} -E echo ""
     COMMAND ${CMAKE_COMMAND} -E echo "Examples:"
     COMMAND ${CMAKE_COMMAND} -E echo "  cmake -DRELEASE=1 .   # Configure release build"
@@ -476,16 +420,6 @@ if(EXISTS ${EVENT_INSTALL_DIR})
     )
 endif()
 
-# ck
-if(EXISTS ${CK_INSTALL_DIR})
-    install(DIRECTORY ${CK_INSTALL_DIR}/lib/
-        DESTINATION dist/thirdparty/ck/lib
-    )
-    install(DIRECTORY ${CK_INSTALL_DIR}/include/
-        DESTINATION dist/thirdparty/ck/include
-    )
-endif()
-
 # 创建pkg-config文件
 # TGLog (multi-threaded version)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/tglog.pc"
@@ -497,8 +431,8 @@ includedir=\${prefix}/include
 Name: TGLog
 Description: High-performance logging library (multi-threaded)
 Version: 1.0.0
-Libs: -L\${libdir} -ltglog -L\${prefix}/thirdparty/event/lib -levent -levent_pthreads -L\${prefix}/thirdparty/ck/lib -lck -L\${prefix}/thirdparty/jemalloc/lib -ljemalloc -lpthread
-Cflags: -I\${includedir}/tglog -I\${prefix}/thirdparty/event/include -I\${prefix}/thirdparty/ck/include
+Libs: -L\${libdir} -ltglog -L\${prefix}/thirdparty/event/lib -levent -levent_pthreads -L\${prefix}/thirdparty/jemalloc/lib -ljemalloc -lpthread
+Cflags: -I\${includedir}/tglog -I\${prefix}/thirdparty/event/include
 ")
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/tglog.pc
     DESTINATION dist/lib/pkgconfig
@@ -514,8 +448,8 @@ includedir=\${prefix}/include
 Name: TGLog-ST
 Description: High-performance logging library (single-threaded)
 Version: 1.0.0
-Libs: -L\${libdir} -ltglog-st -L\${prefix}/thirdparty/event/lib -levent -L\${prefix}/thirdparty/ck/lib -lck -L\${prefix}/thirdparty/jemalloc/lib -ljemalloc -lpthread
-Cflags: -I\${includedir}/tglog-st -I\${prefix}/thirdparty/event/include -I\${prefix}/thirdparty/ck/include
+Libs: -L\${libdir} -ltglog-st -L\${prefix}/thirdparty/event/lib -levent -L\${prefix}/thirdparty/jemalloc/lib -ljemalloc -lpthread
+Cflags: -I\${includedir}/tglog-st -I\${prefix}/thirdparty/event/include
 ")
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/tglog-st.pc
     DESTINATION dist/lib/pkgconfig
@@ -544,7 +478,6 @@ dist/
 │   └── python/             # Python bindings
 └── thirdparty/             # Dependencies
     ├── event/              # libevent
-    ├── ck/                 # Concurrency Kit
     └── jemalloc/           # jemalloc
 \\\`\\\`\\\`
 
@@ -598,22 +531,20 @@ int main() {
 gcc -o myapp myapp.c \\\\
     -Iinclude/tglog \\\\
     -Ithirdparty/event/include \\\\
-    -Ithirdparty/ck/include \\\\
-    -Llib -Lthirdparty/event/lib -Lthirdparty/ck/lib -Lthirdparty/jemalloc/lib \\\\
-    -ltglog -levent -levent_pthreads -lck -ljemalloc -lpthread
+    -Llib -Lthirdparty/event/lib -Lthirdparty/jemalloc/lib \\\\
+    -ltglog -levent -levent_pthreads -ljemalloc -lpthread
 
 # Single-threaded version
 gcc -o myapp myapp.c \\\\
     -Iinclude/tglog-st \\\\
     -Ithirdparty/event/include \\\\
-    -Ithirdparty/ck/include \\\\
-    -Llib -Lthirdparty/event/lib -Lthirdparty/ck/lib -Lthirdparty/jemalloc/lib \\\\
-    -ltglog-st -levent -lck -ljemalloc -lpthread
+    -Llib -Lthirdparty/event/lib -Lthirdparty/jemalloc/lib \\\\
+    -ltglog-st -levent -ljemalloc -lpthread
 \\\`\\\`\\\`
 
 ### Method 2: Using pkg-config (Easiest)
 
-pkg-config automatically includes all dependencies (libevent, ck, jemalloc):
+pkg-config automatically includes all dependencies (libevent, jemalloc):
 
 \\\`\\\`\\\`bash
 # Set PKG_CONFIG_PATH (relative to dist directory)
@@ -630,10 +561,10 @@ gcc -o myapp myapp.c \`pkg-config --cflags --libs tglog-st\`
 
 \\\`\\\`\\\`makefile
 # Multi-threaded version
-LIBDIR := lib thirdparty/event/lib thirdparty/ck/lib thirdparty/jemalloc/lib
-STATIC_LIBS := tglog event event_pthreads ck jemalloc
+LIBDIR := lib thirdparty/event/lib thirdparty/jemalloc/lib
+STATIC_LIBS := tglog event event_pthreads jemalloc
 DYNAMIC_LIBS := pthread
-INCLUDES := include/tglog thirdparty/event/include thirdparty/ck/include
+INCLUDES := include/tglog thirdparty/event/include
 
 myapp: myapp.c
 	gcc \\\$(addprefix -I,\\\$(INCLUDES)) -o \\\$@ \\\$< \\\\

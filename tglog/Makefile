@@ -10,14 +10,14 @@ LIB_DIR = ../lib
 THIRD_PARTY_DIR = ../thirdparty
 EVENT_DIR = $(THIRD_PARTY_DIR)/event
 JEMALLOC_DIR = $(THIRD_PARTY_DIR)/jemalloc
-CK_DIR = $(THIRD_PARTY_DIR)/ck
+COMMON_DIR = ..
 
 # Target libraries
 LIB_STATIC = $(LIB_DIR)/libtglog.a
 LIB_SHARED = $(LIB_DIR)/libtglog.so
 
 # Compiler flags
-CFLAGS = -Wall -std=c99 -D_GNU_SOURCE -D_REENTRANT -fPIC -m64 -pipe
+CFLAGS = -Wall -std=c99 -D_GNU_SOURCE -D_REENTRANT -fPIC -m64 -pipe -mcx16
 CFLAGS += -Wno-typedef-redefinition
 
 # Build optimization
@@ -29,17 +29,16 @@ endif
 
 # Include paths
 INCLUDES = -I. \
+           -I$(COMMON_DIR)/common \
            -I$(EVENT_DIR)/include \
-           -I$(JEMALLOC_DIR)/include \
-           -I$(CK_DIR)/include
+           -I$(JEMALLOC_DIR)/include
 
 # Library paths
 LDFLAGS = -L$(EVENT_DIR)/lib \
-		  -L$(JEMALLOC_DIR)/lib \
-          -L$(CK_DIR)/lib
+		  -L$(JEMALLOC_DIR)/lib
 
 # Static libraries to link (jemalloc should be linked by final executable, not by the library)
-STATIC_LIBS = event event_pthreads ck
+STATIC_LIBS = event event_pthreads
 
 # Dynamic libraries (platform-specific)
 ifeq ($(shell uname),Darwin)
@@ -48,8 +47,8 @@ else
     DYNAMIC_LIBS = m z rt dl pthread
 endif
 
-# Source files (auto-detected)
-SRCS = $(wildcard *.c)
+# Source files (auto-detected + common)
+SRCS = $(wildcard *.c) $(COMMON_DIR)/common/tglog_ht.c
 
 # Object files
 OBJS = $(SRCS:.c=.o)

@@ -1,11 +1,11 @@
-LIBDIR:=../lib ../thirdparty/event/lib ../thirdparty/ck/lib ../thirdparty/jemalloc/lib
-STATIC_LIBS :=tglog event event_pthreads ck jemalloc
+LIBDIR:=../lib ../thirdparty/event/lib ../thirdparty/jemalloc/lib
+STATIC_LIBS :=tglog event event_pthreads jemalloc
 ifeq ($(shell uname -s),Darwin)
     DYNAMIC_LIBS :=m z pthread
 else
     DYNAMIC_LIBS :=m z rt dl pthread
 endif
-INCLUDES:=. ../tglog ../thirdparty/event/include ../thirdparty/ck/include
+INCLUDES:=. ../tglog ../common ../thirdparty/event/include
 
 CC = gcc
 CFLAGS = -Wall -Werror -Wno-typedef-redefinition -std=c99 -D_GNU_SOURCE $(addprefix -I,$(INCLUDES))

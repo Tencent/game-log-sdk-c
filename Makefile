@@ -13,17 +13,12 @@ EVENT_INSTALL_DIR = $(CURRENT_DIR)/thirdparty/event
 EVENT_LIB = $(EVENT_INSTALL_DIR)/lib/libevent.a
 EVENT_VERSION = release-2.1.12-stable
 
-CK_SRC_DIR = $(CURRENT_DIR)/ck
-CK_INSTALL_DIR = $(CURRENT_DIR)/thirdparty/ck
-CK_LIB = $(CK_INSTALL_DIR)/lib/libck.a
-CK_VERSION = 0.7.2
-
 LIB_DIR = $(CURRENT_DIR)/lib
 
 # Compiler settings
 CC = gcc
-CFLAGS = -std=c99 -D_GNU_SOURCE -D_REENTRANT -Wno-typedef-redefinition -I$(EVENT_INSTALL_DIR)/include -I$(CK_INSTALL_DIR)/include -I.
-LDFLAGS = -L$(EVENT_INSTALL_DIR)/lib -L$(CK_INSTALL_DIR)/lib -levent -lck -lpthread
+CFLAGS = -std=c99 -D_GNU_SOURCE -D_REENTRANT -Wno-typedef-redefinition -I$(EVENT_INSTALL_DIR)/include -I.
+LDFLAGS = -L$(EVENT_INSTALL_DIR)/lib -levent -lpthread
 
 # Build optimization
 ifdef RELEASE
@@ -41,7 +36,7 @@ endif
 
 # Targets
 SUB_DIRS = tglog tglog-st test test-st test-tapp bindings
-DEPS = $(JEMALLOC_LIB) $(EVENT_LIB) $(CK_LIB)
+DEPS = $(JEMALLOC_LIB) $(EVENT_LIB)
 
 .PHONY: all deps tglog tglog-st test test-tapp examples bindings python clean clean-deps clean-bindings uninstall check-deps help install init-submodules
 
@@ -53,8 +48,7 @@ all: deps tglog tglog-st test test-tapp bindings
 init-submodules:
 	$(Q)echo "Checking dependencies..."
 	$(Q)if [ ! -d "$(JEMALLOC_SRC_DIR)" ] || [ ! "$(shell ls -A $(JEMALLOC_SRC_DIR) 2>/dev/null)" ] || \
-	   [ ! -d "$(EVENT_SRC_DIR)" ] || [ ! "$(shell ls -A $(EVENT_SRC_DIR) 2>/dev/null)" ] || \
-	   [ ! -d "$(CK_SRC_DIR)" ] || [ ! "$(shell ls -A $(CK_SRC_DIR) 2>/dev/null)" ]; then \
+	   [ ! -d "$(EVENT_SRC_DIR)" ] || [ ! "$(shell ls -A $(EVENT_SRC_DIR) 2>/dev/null)" ]; then \
 		echo "  Dependencies not found, initializing..."; \
 		if [ -d ".git" ]; then \
 			echo "  Using git submodules..."; \
@@ -90,14 +84,6 @@ init-submodules:
 			if [ "$$CURRENT" != "$(EVENT_VERSION)" ]; then \
 				echo "    libevent: $$CURRENT -> $(EVENT_VERSION)"; \
 				git checkout $(EVENT_VERSION) 2>/dev/null || true; \
-			fi; \
-		fi; \
-		if [ -e "$(CK_SRC_DIR)/.git" ]; then \
-			cd $(CK_SRC_DIR) && \
-			CURRENT=$$(git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
-			if [ "$$CURRENT" != "$(CK_VERSION)" ]; then \
-				echo "    ck: $$CURRENT -> $(CK_VERSION)"; \
-				git checkout $(CK_VERSION) 2>/dev/null || true; \
 			fi; \
 		fi; \
 		echo "✓ Submodules checked out to specified versions"; \
@@ -153,17 +139,11 @@ $(EVENT_LIB):
 	$(Q)mkdir -p $(EVENT_INSTALL_DIR)
 	$(Q)cd $(EVENT_SRC_DIR) && ./autogen.sh && ./configure --prefix=$(EVENT_INSTALL_DIR) --with-pic --disable-shared --enable-static --disable-openssl && make && make install
 
-$(CK_LIB):
-	$(Q)echo "Building Concurrency Kit..."
-	$(Q)mkdir -p $(CK_INSTALL_DIR)
-	$(Q)cd $(CK_SRC_DIR) && ./configure --prefix=$(CK_INSTALL_DIR) && make && make install
-
 # Check dependencies
 check-deps:
 	$(Q)echo "Checking dependencies..."
 	$(Q)echo -n "  jemalloc: "; if [ -f "$(JEMALLOC_LIB)" ]; then echo "✓ built"; else echo "✗ missing"; fi
 	$(Q)echo -n "  libevent: "; if [ -f "$(EVENT_LIB)" ]; then echo "✓ built"; else echo "✗ missing"; fi
-	$(Q)echo -n "  ck: "; if [ -f "$(CK_LIB)" ]; then echo "✓ built"; else echo "✗ missing"; fi
 	$(Q)echo -n "  tglog static lib: "; if [ -f "$(LIB_DIR)/libtglog.a" ]; then echo "✓ built"; else echo "✗ missing"; fi
 	$(Q)echo -n "  tglog shared lib: "; if [ -f "$(LIB_DIR)/libtglog.so" ]; then echo "✓ built"; else echo "✗ missing"; fi
 	$(Q)echo -n "  tglog-st static lib: "; if [ -f "$(LIB_DIR)/libtglog-st.a" ]; then echo "✓ built"; else echo "✗ missing"; fi
@@ -187,10 +167,9 @@ clean-bindings:
 
 clean-deps:
 	$(Q)echo "Cleaning dependencies..."
-	$(Q)rm -rf $(JEMALLOC_INSTALL_DIR) $(EVENT_INSTALL_DIR) $(CK_INSTALL_DIR)
+	$(Q)rm -rf $(JEMALLOC_INSTALL_DIR) $(EVENT_INSTALL_DIR)
 	$(Q)cd $(JEMALLOC_SRC_DIR) && make clean
 	$(Q)cd $(EVENT_SRC_DIR) && make clean
-	$(Q)cd $(CK_SRC_DIR) && make clean
 	$(Q)echo "✓ Dependencies cleaned!"
 
 uninstall:
@@ -203,7 +182,7 @@ install: all
 	$(Q)echo "Installing..."
 	$(Q)# Create directory structure
 	$(Q)mkdir -p dist/lib dist/bin dist/include dist/bindings/python
-	$(Q)mkdir -p dist/thirdparty/jemalloc dist/thirdparty/event dist/thirdparty/ck
+	$(Q)mkdir -p dist/thirdparty/jemalloc dist/thirdparty/event
 
 	$(Q)# Install libraries and headers by calling subdirectory makefiles
 	$(Q)echo "  Installing TGLog libraries and headers..."
@@ -232,11 +211,6 @@ install: all
 		cp -rf $(EVENT_INSTALL_DIR)/lib dist/thirdparty/event/ 2>/dev/null || true; \
 		cp -rf $(EVENT_INSTALL_DIR)/include dist/thirdparty/event/ 2>/dev/null || true; \
 	fi
-	$(Q)# ck
-	$(Q)if [ -d "$(CK_INSTALL_DIR)" ]; then \
-		cp -rf $(CK_INSTALL_DIR)/lib dist/thirdparty/ck/ 2>/dev/null || true; \
-		cp -rf $(CK_INSTALL_DIR)/include dist/thirdparty/ck/ 2>/dev/null || true; \
-	fi
 	
 	$(Q)# Create pkg-config files
 	$(Q)echo "  Creating pkg-config files..."
@@ -251,8 +225,8 @@ install: all
 	$(Q)echo "Name: TGLog" >> dist/lib/pkgconfig/tglog.pc
 	$(Q)echo "Description: High-performance logging library (multi-threaded)" >> dist/lib/pkgconfig/tglog.pc
 	$(Q)echo "Version: 1.0.0" >> dist/lib/pkgconfig/tglog.pc
-	$(Q)echo "Libs: -L\$${libdir} -ltglog -L\$${prefix}/thirdparty/event/lib -levent -levent_pthreads -L\$${prefix}/thirdparty/ck/lib -lck -L\$${prefix}/thirdparty/jemalloc/lib -ljemalloc -lpthread" >> dist/lib/pkgconfig/tglog.pc
-	$(Q)echo "Cflags: -I\$${includedir}/tglog -I\$${prefix}/thirdparty/event/include -I\$${prefix}/thirdparty/ck/include" >> dist/lib/pkgconfig/tglog.pc
+	$(Q)echo "Libs: -L\$${libdir} -ltglog -L\$${prefix}/thirdparty/event/lib -levent -levent_pthreads -L\$${prefix}/thirdparty/jemalloc/lib -ljemalloc -lpthread" >> dist/lib/pkgconfig/tglog.pc
+	$(Q)echo "Cflags: -I\$${includedir}/tglog -I\$${prefix}/thirdparty/event/include" >> dist/lib/pkgconfig/tglog.pc
 
 	$(Q)# TGLog-ST (single-threaded version)
 	$(Q)echo "prefix=$$(pwd)/dist" > dist/lib/pkgconfig/tglog-st.pc
@@ -263,8 +237,8 @@ install: all
 	$(Q)echo "Name: TGLog-ST" >> dist/lib/pkgconfig/tglog-st.pc
 	$(Q)echo "Description: High-performance logging library (single-threaded)" >> dist/lib/pkgconfig/tglog-st.pc
 	$(Q)echo "Version: 1.0.0" >> dist/lib/pkgconfig/tglog-st.pc
-	$(Q)echo "Libs: -L\$${libdir} -ltglog-st -L\$${prefix}/thirdparty/event/lib -levent -L\$${prefix}/thirdparty/ck/lib -lck -L\$${prefix}/thirdparty/jemalloc/lib -ljemalloc -lpthread" >> dist/lib/pkgconfig/tglog-st.pc
-	$(Q)echo "Cflags: -I\$${includedir}/tglog-st -I\$${prefix}/thirdparty/event/include -I\$${prefix}/thirdparty/ck/include" >> dist/lib/pkgconfig/tglog-st.pc
+	$(Q)echo "Libs: -L\$${libdir} -ltglog-st -L\$${prefix}/thirdparty/event/lib -levent -L\$${prefix}/thirdparty/jemalloc/lib -ljemalloc -lpthread" >> dist/lib/pkgconfig/tglog-st.pc
+	$(Q)echo "Cflags: -I\$${includedir}/tglog-st -I\$${prefix}/thirdparty/event/include" >> dist/lib/pkgconfig/tglog-st.pc
 	
 	$(Q)# Create usage README
 	$(Q)echo "  Creating usage documentation..."
@@ -289,7 +263,6 @@ install: all
 	$(Q)echo "│   └── python/             # Python bindings" >> dist/README.md
 	$(Q)echo "└── thirdparty/             # Dependencies" >> dist/README.md
 	$(Q)echo "    ├── event/              # libevent" >> dist/README.md
-	$(Q)echo "    ├── ck/                 # Concurrency Kit" >> dist/README.md
 	$(Q)echo "    └── jemalloc/           # jemalloc" >> dist/README.md
 	$(Q)echo "\`\`\`" >> dist/README.md
 	$(Q)echo "" >> dist/README.md
@@ -343,22 +316,20 @@ install: all
 	$(Q)echo "gcc -o myapp myapp.c \\" >> dist/README.md
 	$(Q)echo "    -Iinclude/tglog \\" >> dist/README.md
 	$(Q)echo "    -Ithirdparty/event/include \\" >> dist/README.md
-	$(Q)echo "    -Ithirdparty/ck/include \\" >> dist/README.md
-	$(Q)echo "    -Llib -Lthirdparty/event/lib -Lthirdparty/ck/lib -Lthirdparty/jemalloc/lib \\" >> dist/README.md
-	$(Q)echo "    -ltglog -levent -levent_pthreads -lck -ljemalloc -lpthread" >> dist/README.md
+	$(Q)echo "    -Llib -Lthirdparty/event/lib -Lthirdparty/jemalloc/lib \\" >> dist/README.md
+	$(Q)echo "    -ltglog -levent -levent_pthreads -ljemalloc -lpthread" >> dist/README.md
 	$(Q)echo "" >> dist/README.md
 	$(Q)echo "# Single-threaded version" >> dist/README.md
 	$(Q)echo "gcc -o myapp myapp.c \\" >> dist/README.md
 	$(Q)echo "    -Iinclude/tglog-st \\" >> dist/README.md
 	$(Q)echo "    -Ithirdparty/event/include \\" >> dist/README.md
-	$(Q)echo "    -Ithirdparty/ck/include \\" >> dist/README.md
-	$(Q)echo "    -Llib -Lthirdparty/event/lib -Lthirdparty/ck/lib -Lthirdparty/jemalloc/lib \\" >> dist/README.md
-	$(Q)echo "    -ltglog-st -levent -lck -ljemalloc -lpthread" >> dist/README.md
+	$(Q)echo "    -Llib -Lthirdparty/event/lib -Lthirdparty/jemalloc/lib \\" >> dist/README.md
+	$(Q)echo "    -ltglog-st -levent -ljemalloc -lpthread" >> dist/README.md
 	$(Q)echo "\`\`\`" >> dist/README.md
 	$(Q)echo "" >> dist/README.md
 	$(Q)echo "### Method 2: Using pkg-config (Easiest)" >> dist/README.md
 	$(Q)echo "" >> dist/README.md
-	$(Q)echo "pkg-config automatically includes all dependencies (libevent, ck, jemalloc):" >> dist/README.md
+	$(Q)echo "pkg-config automatically includes all dependencies (libevent, jemalloc):" >> dist/README.md
 	$(Q)echo "" >> dist/README.md
 	$(Q)echo "\`\`\`bash" >> dist/README.md
 	$(Q)echo "# Set PKG_CONFIG_PATH (relative to dist directory)" >> dist/README.md
@@ -375,10 +346,10 @@ install: all
 	$(Q)echo "" >> dist/README.md
 	$(Q)echo "\`\`\`makefile" >> dist/README.md
 	$(Q)echo "# Multi-threaded version" >> dist/README.md
-	$(Q)echo "LIBDIR := lib thirdparty/event/lib thirdparty/ck/lib thirdparty/jemalloc/lib" >> dist/README.md
-	$(Q)echo "STATIC_LIBS := tglog event event_pthreads ck jemalloc" >> dist/README.md
+	$(Q)echo "LIBDIR := lib thirdparty/event/lib thirdparty/jemalloc/lib" >> dist/README.md
+	$(Q)echo "STATIC_LIBS := tglog event event_pthreads jemalloc" >> dist/README.md
 	$(Q)echo "DYNAMIC_LIBS := pthread" >> dist/README.md
-	$(Q)echo "INCLUDES := include/tglog thirdparty/event/include thirdparty/ck/include" >> dist/README.md
+	$(Q)echo "INCLUDES := include/tglog thirdparty/event/include" >> dist/README.md
 	$(Q)echo "" >> dist/README.md
 	$(Q)echo "myapp: myapp.c" >> dist/README.md
 	$(Q)echo "	gcc \$$(addprefix -I,\$$(INCLUDES)) -o \$$@ \$$< \\" >> dist/README.md
@@ -456,7 +427,7 @@ help:
 	@echo "Available targets:"
 	@echo "  all          - Build everything (dependencies + TGLog + tests + bindings)"
 	@echo "  init-submodules - Initialize and checkout git submodules to specific versions"
-	@echo "  deps         - Build only dependencies (jemalloc, libevent, ck)"
+	@echo "  deps         - Build only dependencies (jemalloc, libevent)"
 	@echo "  tglog        - Build TGLog library (static and shared)"
 	@echo "  tglog-st     - Build TGLog single-threaded library"
 	@echo "  test         - Build test programs"
@@ -479,7 +450,6 @@ help:
 	@echo "Submodule versions:"
 	@echo "  jemalloc: $(JEMALLOC_VERSION)"
 	@echo "  libevent: $(EVENT_VERSION)"
-	@echo "  ck:       $(CK_VERSION)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make               # Build everything"

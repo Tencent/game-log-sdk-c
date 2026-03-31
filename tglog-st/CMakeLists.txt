@@ -10,9 +10,9 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -fPIC -std=c99 -D_GNU_SOURCE")
 # 包含目录 - 使用变量存储，但不使用全局include_directories
 set(TGLOG_ST_INCLUDE_DIRS
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/common
         ${CMAKE_SOURCE_DIR}/thirdparty/event/include
         ${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/include
-        ${CMAKE_SOURCE_DIR}/thirdparty/ck/include
 )
 
 # 源文件
@@ -28,6 +28,7 @@ set(SOURCES
         worker.c
         discoverer.c
         pool.c
+        ${CMAKE_SOURCE_DIR}/common/tglog_ht.c
 )
 
 # 头文件
@@ -58,11 +59,10 @@ set_target_properties(tglog-st_static PROPERTIES OUTPUT_NAME "tglog-st")
 # 设置静态库的包含目录
 target_include_directories(tglog-st_static PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/common>
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/thirdparty/event/include>
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/event/include>  # 添加源码目录供IDE使用
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/include>
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/thirdparty/ck/include>
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/ck/include>  # 添加ck源码目录
         $<INSTALL_INTERFACE:include/tglog-st>
 )
 
@@ -73,11 +73,10 @@ set_target_properties(tglog-st_shared PROPERTIES OUTPUT_NAME "tglog-st")
 # 设置动态库的包含目录
 target_include_directories(tglog-st_shared PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/common>
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/thirdparty/event/include>
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/event/include>  # 添加源码目录供IDE使用
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/include>
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/thirdparty/ck/include>
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/ck/include>  # 添加ck源码目录
         $<INSTALL_INTERFACE:include/tglog-st>
 )
 
@@ -85,20 +84,18 @@ target_include_directories(tglog-st_shared PUBLIC
 target_link_directories(tglog-st_static PRIVATE
         ${CMAKE_SOURCE_DIR}/thirdparty/event/lib
         ${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/lib
-        ${CMAKE_SOURCE_DIR}/thirdparty/ck/lib
 )
 
 target_link_directories(tglog-st_shared PRIVATE
         ${CMAKE_SOURCE_DIR}/thirdparty/event/lib
         ${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/lib
-        ${CMAKE_SOURCE_DIR}/thirdparty/ck/lib
 )
 
 # 根据系统平台设置链接选项
 # Note: jemalloc is NOT linked here - it should be linked by the final executable
 if (APPLE)
     target_link_libraries(tglog-st_shared PRIVATE
-            event ck
+            event
             pthread m
     )
 else ()
@@ -107,7 +104,7 @@ else ()
             -Wl,-Bstatic
     )
     target_link_libraries(tglog-st_shared PRIVATE
-            event ck
+            event
     )
     target_link_options(tglog-st_shared PRIVATE
             -Wl,-Bdynamic
@@ -118,8 +115,8 @@ else ()
 endif ()
 
 # 添加依赖
-add_dependencies(tglog-st_static jemalloc_build libevent_build ck_build event ck)
-add_dependencies(tglog-st_shared jemalloc_build libevent_build ck_build event ck)
+add_dependencies(tglog-st_static jemalloc_build libevent_build event)
+add_dependencies(tglog-st_shared jemalloc_build libevent_build event)
 
 # 测试程序已移至 test-st 目录
 
@@ -137,12 +134,11 @@ install(FILES ${HEADERS}
 add_library(tglog-st INTERFACE)
 target_include_directories(tglog-st INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/common>
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/thirdparty/event/include>
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/event/include>  # 添加源码目录供IDE使用
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/event>  # 添加event根目录
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/include>
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/thirdparty/ck/include>
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/ck/include>  # 添加ck源码目录
 )
 target_link_libraries(tglog-st INTERFACE tglog-st_static)
 

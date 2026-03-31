@@ -32,7 +32,7 @@ tglog_payload_pool *tglog_payload_pool_create(size_t block_size, size_t capacity
     }
 
     /* Initialize the payload stack */
-    ck_stack_init(&pool->payload_stack);
+    tglog_stack_init(&pool->payload_stack);
 
     /* Initialize each payload block in the continuous memory */
     for (size_t i = 0; i < capacity; i++) {
@@ -44,7 +44,7 @@ tglog_payload_pool *tglog_payload_pool_create(size_t block_size, size_t capacity
         payload->size = block_size;
 
         /* Push to stack */
-        ck_stack_push_spnc(&pool->payload_stack, &payload->stack_entry);
+        tglog_stack_push_spnc(&pool->payload_stack, &payload->stack_entry);
         pool->allocated++;
     }
 
@@ -64,14 +64,14 @@ void tglog_payload_pool_destroy(tglog_payload_pool *pool) {
     free(pool);
 }
 
-CK_STACK_CONTAINER(tglog_payload, stack_entry, entry_to_payload);
+TGLOG_STACK_CONTAINER(tglog_payload, stack_entry, entry_to_payload);
 
 tglog_payload *tglog_payload_pool_get(tglog_payload_pool *pool) {
     if (!pool) {
         return NULL;
     }
 
-    ck_stack_entry_t *entry = ck_stack_pop_npsc(&pool->payload_stack);
+    tglog_stack_entry_t *entry = tglog_stack_pop_npsc(&pool->payload_stack);
     if (entry) {
         pool->hit_count++;
         return entry_to_payload(entry);
@@ -86,7 +86,7 @@ void tglog_payload_pool_put(tglog_payload_pool *pool, tglog_payload *payload) {
         return;
     }
 
-    ck_stack_push_spnc(&pool->payload_stack, &payload->stack_entry);
+    tglog_stack_push_spnc(&pool->payload_stack, &payload->stack_entry);
     pool->return_count++;
 }
 
@@ -233,13 +233,13 @@ tglog_message_pool *tglog_message_pool_create(size_t capacity) {
     pool->allocated = 0;
 
     /* Initialize the message stack */
-    ck_stack_init(&pool->msg_stack);
+    tglog_stack_init(&pool->msg_stack);
 
     /* Pre-fill the message stack with all message objects */
     for (size_t i = 0; i < capacity; i++) {
         tglog_message *msg = &pool->msg_array[i];
         msg->pool = pool;
-        ck_stack_push_spnc(&pool->msg_stack, &msg->stack_entry);
+        tglog_stack_push_spnc(&pool->msg_stack, &msg->stack_entry);
         pool->allocated++;
     }
 
@@ -260,10 +260,10 @@ void tglog_message_pool_destroy(tglog_message_pool *pool) {
     free(pool);
 }
 
-CK_STACK_CONTAINER(tglog_message, stack_entry, entry_to_message);
+TGLOG_STACK_CONTAINER(tglog_message, stack_entry, entry_to_message);
 
 tglog_message *tglog_message_pool_get(tglog_message_pool *pool) {
-    ck_stack_entry_t *entry = ck_stack_pop_npsc(&pool->msg_stack);
+    tglog_stack_entry_t *entry = tglog_stack_pop_npsc(&pool->msg_stack);
     if (entry) {
         pool->hit_count++;
         tglog_message *msg = entry_to_message(entry);
@@ -276,7 +276,7 @@ tglog_message *tglog_message_pool_get(tglog_message_pool *pool) {
 }
 
 void tglog_message_pool_put(tglog_message_pool *pool, tglog_message *msg) {
-    ck_stack_push_spnc(&pool->msg_stack, &msg->stack_entry);
+    tglog_stack_push_spnc(&pool->msg_stack, &msg->stack_entry);
     pool->return_count++;
 }
 
@@ -506,12 +506,12 @@ void tglog_mem_pool_destroy(tglog_mem_pool *pool) {
     free(pool);
 }
 
-static size_t ck_stack_count(ck_stack_t *stack) {
+static size_t tglog_stack_count(tglog_stack_t *stack) {
     size_t count = 0;
-    ck_stack_entry_t *entry = CK_STACK_FIRST(stack);
+    tglog_stack_entry_t *entry = TGLOG_STACK_FIRST(stack);
     while (entry != NULL) {
         count++;
-        entry = CK_STACK_NEXT(entry);
+        entry = TGLOG_STACK_NEXT(entry);
     }
     return count;
 }
@@ -556,7 +556,7 @@ bool tglog_mem_pool_get_stats(tglog_mem_pool *pool, tglog_mem_pool_stats *stats)
                 stats->payload_stats[i].return_count = p_pool->return_count;
 
                 /* Calculate current free count */
-                stats->payload_stats[i].current_free = ck_stack_count(&p_pool->payload_stack);
+                stats->payload_stats[i].current_free = tglog_stack_count(&p_pool->payload_stack);
 
                 /* Calculate hit rate */
                 uint64_t requests = stats->payload_stats[i].hit_count + stats->payload_stats[i].miss_count;

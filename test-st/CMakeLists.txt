@@ -7,7 +7,6 @@ file(GLOB TEST_SOURCES "*.c")
 set(LIBDIRS
         ${CMAKE_SOURCE_DIR}/lib
         ${CMAKE_SOURCE_DIR}/thirdparty/event/lib
-        ${CMAKE_SOURCE_DIR}/thirdparty/ck/lib
         ${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/lib
 )
 
@@ -16,7 +15,6 @@ set(INCLUDES
         .
         ${CMAKE_SOURCE_DIR}/tglog-st
         ${CMAKE_SOURCE_DIR}/thirdparty/event/include
-        ${CMAKE_SOURCE_DIR}/thirdparty/ck/include
 )
 
 # 设置编译选项
@@ -49,14 +47,14 @@ foreach (test_source ${TEST_SOURCES})
     # 所有平台都使用静态链接
     if (APPLE)
         target_link_libraries(${test_exe_name} PRIVATE
-                tglog-st_static event ck jemalloc
+                tglog-st_static event jemalloc
                 m z pthread
         )
     else ()
         # Linux 系统
         target_link_options(${test_exe_name} PRIVATE -Wl,-dn)
         target_link_libraries(${test_exe_name} PRIVATE
-                tglog-st_static event ck jemalloc
+                tglog-st_static event jemalloc
         )
         target_link_options(${test_exe_name} PRIVATE -Wl,-dy)
         target_link_libraries(${test_exe_name} PRIVATE
@@ -65,7 +63,7 @@ foreach (test_source ${TEST_SOURCES})
     endif ()
 
     # 确保依赖项已经构建
-    add_dependencies(${test_exe_name} tglog-st_static jemalloc event ck)
+    add_dependencies(${test_exe_name} tglog-st_static jemalloc event)
 
     # 设置输出目录为当前目录
     set_target_properties(${test_exe_name} PROPERTIES

@@ -28,20 +28,18 @@ extensions = [
         sources=["tglog_cython.pyx"],
         include_dirs=[
             os.path.join(sdk_root, 'tglog'),
-            os.path.join(sdk_root, 'thirdparty/ck/include'),
+            os.path.join(sdk_root, 'common'),
             os.path.join(sdk_root, 'thirdparty/event/include'),
         ],
         library_dirs=[
             os.path.join(sdk_root, 'lib'),
             os.path.join(sdk_root, 'thirdparty/event/lib'),
-            os.path.join(sdk_root, 'thirdparty/ck/lib'),
         ],
-        libraries=['tglog', 'event', 'ck', 'pthread'],
+        libraries=['tglog', 'event', 'pthread'],
         extra_compile_args=['-O3', '-march=native', '-ffast-math', '-DNDEBUG', '-std=c99'],
         extra_link_args=[
             '-Wl,-rpath,' + os.path.join(sdk_root, 'lib'),
             '-Wl,-rpath,' + os.path.join(sdk_root, 'thirdparty/event/lib'),
-            '-Wl,-rpath,' + os.path.join(sdk_root, 'thirdparty/ck/lib'),
             '-lpthread',
             '-levent',
         ],

@@ -2,14 +2,15 @@
 #define TGLOG_REQUEST_H
 
 /* Standard library headers */
+#include <stdbool.h>
 #include <time.h>
 
 /* System headers */
 #include <sys/uio.h>
 
 /* Third-party library headers */
-#include "ck_ring.h"
-#include "ck_stack.h"
+#include "tglog_ring.h"
+#include "tglog_stack.h"
 
 /* Project headers */
 #include "def.h"
@@ -37,10 +38,10 @@ typedef struct tglog_message {
     tglog_msg_flag flag;                /* message flags */
     tglog_payload_pool *payload_pool;   /* payload pool */
     tglog_message_pool *pool;           /* message pool */
-    ck_stack_entry_t stack_entry;       /* stack entry */
+    tglog_stack_entry_t stack_entry;       /* stack entry */
 } tglog_message;
 
-CK_RING_PROTOTYPE(msg_queue, tglog_message*);
+TGLOG_RING_PROTOTYPE(msg_queue, tglog_message*);
 
 /**
  * Create a tglog message.
@@ -205,7 +206,7 @@ typedef struct tglog_endpoint_notify {
     tglog_endpoint_list *removed;
 } tglog_endpoint_notify;
 
-CK_RING_PROTOTYPE(epn_queue, tglog_endpoint_notify*);
+TGLOG_RING_PROTOTYPE(epn_queue, tglog_endpoint_notify*);
 
 /**
  * Create a tglog endpoint notify.

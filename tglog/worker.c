@@ -64,16 +64,16 @@ static void *tglog_worker_thread(void *user_data) {
 }
 
 static void tglog_worker_set_endpoint_retry_count(tglog_worker *worker, char *addr, int value) {
-    ck_ht_hash_t hash;
-    ck_ht_hash(&hash, &worker->endpoint_retry_counts, addr, strlen(addr));
+    tglog_ht_hash_t hash;
+    tglog_ht_hash(&hash, &worker->endpoint_retry_counts, addr, strlen(addr));
 
-    ck_ht_entry_t entry;
-    ck_ht_entry_key_set(&entry, addr, strlen(addr));
-    bool ok = ck_ht_get_spmc(&worker->endpoint_retry_counts, hash, &entry);
+    tglog_ht_entry_t entry;
+    tglog_ht_entry_key_set(&entry, addr, strlen(addr));
+    bool ok = tglog_ht_get(&worker->endpoint_retry_counts, hash, &entry);
     if (ok) {
         /* Use the old key pointer here */
-        ck_ht_entry_set(&entry, hash, ck_ht_entry_key(&entry), strlen(addr), (void *) (intptr_t) value);
-        if (ck_ht_set_spmc(&worker->endpoint_retry_counts, hash, &entry)) {
+        tglog_ht_entry_set(&entry, hash, tglog_ht_entry_key(&entry), strlen(addr), (void *) (intptr_t) value);
+        if (tglog_ht_set(&worker->endpoint_retry_counts, hash, &entry)) {
             tglog_info(worker->logger, "Set endpoint retry count, worker: %d , addr: %s, retry_count: %d", worker->id, addr, value);
         } else {
             tglog_error(worker->logger, "Set endpoint retry count failed, worker: %d , addr: %s, retry_count: %d", worker->id, addr, value);
@@ -82,40 +82,40 @@ static void tglog_worker_set_endpoint_retry_count(tglog_worker *worker, char *ad
     }
 
     /* Duplicate the addr here */
-    ck_ht_entry_set(&entry, hash, strdup(addr), strlen(addr), (void *) (intptr_t) 1);
-    if (!ck_ht_set_spmc(&worker->endpoint_retry_counts, hash, &entry)) {
+    tglog_ht_entry_set(&entry, hash, strdup(addr), strlen(addr), (void *) (intptr_t) 1);
+    if (!tglog_ht_set(&worker->endpoint_retry_counts, hash, &entry)) {
         tglog_error(worker->logger, "Set endpoint retry count failed, worker: %d , addr: %s, retry_count: %d", worker->id, addr, value);
-        free(ck_ht_entry_key(&entry));
+        free(tglog_ht_entry_key(&entry));
     }
 
     tglog_info(worker->logger, "Set endpoint retry count, worker: %d , addr: %s, retry_count: %d", worker->id, addr, value);
 }
 
 static int tglog_worker_get_endpoint_retry_count(tglog_worker *worker, char *addr) {
-    ck_ht_hash_t hash;
-    ck_ht_hash(&hash, &worker->endpoint_retry_counts, addr, strlen(addr));
+    tglog_ht_hash_t hash;
+    tglog_ht_hash(&hash, &worker->endpoint_retry_counts, addr, strlen(addr));
 
-    ck_ht_entry_t entry;
-    ck_ht_entry_key_set(&entry, addr, strlen(addr));
-    bool ok = ck_ht_get_spmc(&worker->endpoint_retry_counts, hash, &entry);
+    tglog_ht_entry_t entry;
+    tglog_ht_entry_key_set(&entry, addr, strlen(addr));
+    bool ok = tglog_ht_get(&worker->endpoint_retry_counts, hash, &entry);
     if (!ok) {
         tglog_error(worker->logger, "Get endpoint retry count failed, worker: %d , addr: %s", worker->id, addr);
         return 0;
     }
 
-    int value = (int) (intptr_t) ck_ht_entry_value(&entry);
+    int value = (int) (intptr_t) tglog_ht_entry_value(&entry);
     return value;
 }
 
 static void tglog_worker_del_endpoint_retry_count(tglog_worker *worker, char *addr) {
-    ck_ht_hash_t hash;
-    ck_ht_hash(&hash, &worker->endpoint_retry_counts, addr, strlen(addr));
+    tglog_ht_hash_t hash;
+    tglog_ht_hash(&hash, &worker->endpoint_retry_counts, addr, strlen(addr));
 
-    ck_ht_entry_t entry;
-    ck_ht_entry_key_set(&entry, addr, strlen(addr));
-    if (ck_ht_remove_spmc(&worker->endpoint_retry_counts, hash, &entry)) {
+    tglog_ht_entry_t entry;
+    tglog_ht_entry_key_set(&entry, addr, strlen(addr));
+    if (tglog_ht_remove(&worker->endpoint_retry_counts, hash, &entry)) {
         /* Free the key */
-        free(ck_ht_entry_key(&entry));
+        free(tglog_ht_entry_key(&entry));
         return;
     }
 
@@ -141,12 +141,12 @@ static void tglog_worker_mark_endpoint_unavailable(tglog_worker *worker, char *a
         return;
     }
 
-    ck_ht_hash_t hash;
-    ck_ht_hash(&hash, &worker->unavailable_endpoints, addr, strlen(addr));
+    tglog_ht_hash_t hash;
+    tglog_ht_hash(&hash, &worker->unavailable_endpoints, addr, strlen(addr));
 
-    ck_ht_entry_t entry;
-    ck_ht_entry_key_set(&entry, addr, strlen(addr));
-    bool ok = ck_ht_get_spmc(&worker->unavailable_endpoints, hash, &entry);
+    tglog_ht_entry_t entry;
+    tglog_ht_entry_key_set(&entry, addr, strlen(addr));
+    bool ok = tglog_ht_get(&worker->unavailable_endpoints, hash, &entry);
     if (ok) {
         tglog_warn(worker->logger, "Endpoint already marked unavailable, worker: %d, addr: %s", worker->id, addr);
         return;
@@ -154,10 +154,10 @@ static void tglog_worker_mark_endpoint_unavailable(tglog_worker *worker, char *a
 
     time_t value = time(NULL);
     /* Duplicate the addr, we need to free the key when we delete it or when we destroy the worker */
-    ck_ht_entry_set(&entry, hash, strdup(addr), strlen(addr), (void *) (intptr_t) value);
-    if (!ck_ht_put_spmc(&worker->unavailable_endpoints, hash, &entry)) {
+    tglog_ht_entry_set(&entry, hash, strdup(addr), strlen(addr), (void *) (intptr_t) value);
+    if (!tglog_ht_put(&worker->unavailable_endpoints, hash, &entry)) {
         tglog_error(worker->logger, "Mark endpoint unavailable failed, worker: %d, addr: %s", worker->id, addr);
-        free(ck_ht_entry_key(&entry));
+        free(tglog_ht_entry_key(&entry));
     }
 
     tglog_warn(worker->logger, "Mark endpoint unavailable, worker: %d, addr: %s", worker->id, addr);
@@ -165,26 +165,26 @@ static void tglog_worker_mark_endpoint_unavailable(tglog_worker *worker, char *a
 }
 
 static time_t tglog_worker_is_endpoint_unavailable(tglog_worker *worker, char *addr) {
-    ck_ht_hash_t hash;
-    ck_ht_hash(&hash, &worker->unavailable_endpoints, addr, strlen(addr));
+    tglog_ht_hash_t hash;
+    tglog_ht_hash(&hash, &worker->unavailable_endpoints, addr, strlen(addr));
 
-    ck_ht_entry_t entry;
-    ck_ht_entry_key_set(&entry, addr, strlen(addr));
-    if (!ck_ht_get_spmc(&worker->unavailable_endpoints, hash, &entry)) {
+    tglog_ht_entry_t entry;
+    tglog_ht_entry_key_set(&entry, addr, strlen(addr));
+    if (!tglog_ht_get(&worker->unavailable_endpoints, hash, &entry)) {
         return 0;
     }
 
-    return (time_t) (intptr_t) ck_ht_entry_value(&entry);
+    return (time_t) (intptr_t) tglog_ht_entry_value(&entry);
 }
 
 static void tglog_worker_del_unavailable_endpoint(tglog_worker *worker, char *addr) {
-    ck_ht_hash_t hash;
-    ck_ht_hash(&hash, &worker->unavailable_endpoints, addr, strlen(addr));
+    tglog_ht_hash_t hash;
+    tglog_ht_hash(&hash, &worker->unavailable_endpoints, addr, strlen(addr));
 
-    ck_ht_entry_t entry;
-    ck_ht_entry_key_set(&entry, addr, strlen(addr));
-    if (ck_ht_remove_spmc(&worker->unavailable_endpoints, hash, &entry)) {
-        free(ck_ht_entry_key(&entry));
+    tglog_ht_entry_t entry;
+    tglog_ht_entry_key_set(&entry, addr, strlen(addr));
+    if (tglog_ht_remove(&worker->unavailable_endpoints, hash, &entry)) {
+        free(tglog_ht_entry_key(&entry));
         return;
     }
 
@@ -192,12 +192,12 @@ static void tglog_worker_del_unavailable_endpoint(tglog_worker *worker, char *ad
 }
 
 static bool tglog_worker_set_delay_close_conn(tglog_worker *worker, tglog_conn *conn) {
-    ck_ht_hash_t hash;
-    ck_ht_hash(&hash, &worker->delay_close_conns, conn, sizeof(conn));
+    tglog_ht_hash_t hash;
+    tglog_ht_hash(&hash, &worker->delay_close_conns, conn, sizeof(conn));
 
-    ck_ht_entry_t entry;
-    ck_ht_entry_set(&entry, hash, conn, sizeof(conn), (void *) (intptr_t) 1);
-    if (!ck_ht_set_spmc(&worker->delay_close_conns, hash, &entry)) {
+    tglog_ht_entry_t entry;
+    tglog_ht_entry_set(&entry, hash, conn, sizeof(conn), (void *) (intptr_t) 1);
+    if (!tglog_ht_set(&worker->delay_close_conns, hash, &entry)) {
         tglog_error(worker->logger, "Track delay close conn failed, worker: %d, addr: %s", worker->id, conn->endpoint);
         return false;
     }
@@ -206,12 +206,12 @@ static bool tglog_worker_set_delay_close_conn(tglog_worker *worker, tglog_conn *
 }
 
 static void tglog_worker_del_delay_close_conn(tglog_worker *worker, tglog_conn *conn) {
-    ck_ht_hash_t hash;
-    ck_ht_hash(&hash, &worker->delay_close_conns, conn, sizeof(conn));
+    tglog_ht_hash_t hash;
+    tglog_ht_hash(&hash, &worker->delay_close_conns, conn, sizeof(conn));
 
-    ck_ht_entry_t entry;
-    ck_ht_entry_set(&entry, hash, conn, sizeof(conn), (void *) (intptr_t) 1);
-    if (ck_ht_remove_spmc(&worker->delay_close_conns, hash, &entry)) {
+    tglog_ht_entry_t entry;
+    tglog_ht_entry_set(&entry, hash, conn, sizeof(conn), (void *) (intptr_t) 1);
+    if (tglog_ht_remove(&worker->delay_close_conns, hash, &entry)) {
         tglog_info(worker->logger, "Delete delay close conn, worker: %d, addr: %s", worker->id, conn->endpoint);
         return;
     }
@@ -499,7 +499,7 @@ static void tglog_worker_on_conn_connected(tglog_worker *worker, tglog_conn *con
             worker->ready_conn++;
             if (worker->ready_conn + worker->failed_conn >= worker->init_conn_count) {
                 if (worker->ready_conn > 0) {
-                    ck_pr_store_32(&worker->state, TGLOG_WORKER_STATE_READY);
+                    tglog_atomic_store_32(&worker->state, TGLOG_WORKER_STATE_READY);
                 }
                 WakeConditionVariable(&worker->ready_cond);
             }
@@ -509,7 +509,7 @@ static void tglog_worker_on_conn_connected(tglog_worker *worker, tglog_conn *con
             worker->ready_conn++;
             if (worker->ready_conn + worker->failed_conn >= worker->init_conn_count) {
                 if (worker->ready_conn > 0) {
-                    ck_pr_store_32(&worker->state, TGLOG_WORKER_STATE_READY);
+                    tglog_atomic_store_32(&worker->state, TGLOG_WORKER_STATE_READY);
                 }
                 pthread_cond_signal(&worker->ready_cond);
             }
@@ -578,7 +578,7 @@ static void tglog_worker_on_conn_error(tglog_worker *worker, tglog_conn *conn, s
             worker->failed_conn++;
             if (worker->ready_conn + worker->failed_conn >= worker->init_conn_count) {
                 if (worker->ready_conn > 0) {
-                    ck_pr_store_32(&worker->state, TGLOG_WORKER_STATE_READY);
+                    tglog_atomic_store_32(&worker->state, TGLOG_WORKER_STATE_READY);
                 }
                 WakeConditionVariable(&worker->ready_cond);
             }
@@ -588,7 +588,7 @@ static void tglog_worker_on_conn_error(tglog_worker *worker, tglog_conn *conn, s
             worker->failed_conn++;
             if (worker->ready_conn + worker->failed_conn >= worker->init_conn_count) {
                 if (worker->ready_conn > 0) {
-                    ck_pr_store_32(&worker->state, TGLOG_WORKER_STATE_READY);
+                    tglog_atomic_store_32(&worker->state, TGLOG_WORKER_STATE_READY);
                 }
                 pthread_cond_signal(&worker->ready_cond);
             }
@@ -878,13 +878,13 @@ static void *tglog_ht_malloc(size_t r) {
     return malloc(r);
 }
 
-static void tglog_ht_free(void *p, size_t b, bool r) {
+static void tglog_ht_free(void *p, size_t b, int r) {
     (void) b;
     (void) r;
     free(p);
 }
 
-static struct ck_malloc tglog_ck_allocator = {
+static struct tglog_ht_malloc tglog_ck_allocator = {
         .malloc = tglog_ht_malloc,
         .free = tglog_ht_free
 };
@@ -896,11 +896,11 @@ static void tglog_worker_recover_endpoints(evutil_socket_t fd, short what, void 
     tglog_debug(worker->logger, "Worker: %d", worker->id);
 
     /* Check and recover unavailable endpoints with backoff */
-    ck_ht_iterator_t iterator = CK_HT_ITERATOR_INITIALIZER;
-    ck_ht_entry_t *cursor = NULL;
-    while (ck_ht_next(&worker->unavailable_endpoints, &iterator, &cursor)) {
-        void *key_ptr = ck_ht_entry_key(cursor);
-        time_t unavailable_time = (time_t) (uintptr_t) ck_ht_entry_value(cursor);
+    tglog_ht_iterator_t iterator = TGLOG_HT_ITERATOR_INITIALIZER;
+    tglog_ht_entry_t *cursor = NULL;
+    while (tglog_ht_next(&worker->unavailable_endpoints, &iterator, &cursor)) {
+        void *key_ptr = tglog_ht_entry_key(cursor);
+        time_t unavailable_time = (time_t) (uintptr_t) tglog_ht_entry_value(cursor);
         int retry_count = tglog_worker_get_endpoint_retry_count(worker, key_ptr);
         time_t now = time(NULL);
         unsigned int next_retry_time = tglog_backoff_next_interval(&tglog_endpoint_recover_backoff, retry_count, true, &worker->rand_seed);
@@ -1030,7 +1030,7 @@ static tglog_conn *tglog_worker_get_conn(tglog_worker *worker) {
     }
 
     /* Simple round-robin */
-    uint64_t index = ck_pr_faa_64(&worker->conn_index, 1);
+    uint64_t index = tglog_atomic_faa_64(&worker->conn_index, 1);
     return worker->conns->items[index % worker->conns->count];
 }
 
@@ -1141,7 +1141,7 @@ static bool tglog_worker_retry_batch(tglog_worker *worker) {
     }
 
     /* Check if the worker is ready */
-    if (ck_pr_load_32(&worker->state) != TGLOG_WORKER_STATE_READY) {
+    if (tglog_atomic_load_32(&worker->state) != TGLOG_WORKER_STATE_READY) {
         tglog_warn(worker->logger, "Worker is not ready, stop retrying, worker: %d", worker->id);
         tglog_worker_done_batch(worker, TGLOG_ERR_PRODUCER_CLOSED);
         return true;
@@ -1419,7 +1419,7 @@ static int tglog_worker_handle_msg(tglog_worker *worker, bool retry, int max_mes
         /* The batch has been sent successfully, continue to handle the messages in the message queue */
     }
 
-    if (ck_ring_size(&worker->message_queue) == 0 && worker->tmp_message == NULL) {
+    if (tglog_ring_size(&worker->message_queue) == 0 && worker->tmp_message == NULL) {
         return 0;
     }
 
@@ -1433,7 +1433,7 @@ static int tglog_worker_handle_msg(tglog_worker *worker, bool retry, int max_mes
         if (worker->tmp_message != NULL) {
             msg = worker->tmp_message;
             worker->tmp_message = NULL;
-        } else if (!ck_ring_dequeue_mpsc_msg_queue(&worker->message_queue, worker->message_queue_buffer, &msg)) {
+        } else if (!tglog_ring_dequeue_mpsc_msg_queue(&worker->message_queue, worker->message_queue_buffer, &msg)) {
             return msg_count;
         } else {
             tglog_metrics_inc_dequeue_msg_count(worker->metrics, worker->id, 1);
@@ -1556,7 +1556,7 @@ static void tglog_worker_remove_conn_by_endpoint(tglog_worker *worker, tglog_end
 static void tglog_worker_on_endpoint_update(tglog_worker *worker) {
     tglog_debug(worker->logger, "Worker: %d", worker->id);
     tglog_endpoint_notify *epn;
-    if (!ck_ring_dequeue_mpsc_epn_queue(&worker->ep_notify_queue, worker->ep_notify_queue_buffer, &epn)) {
+    if (!tglog_ring_dequeue_mpsc_epn_queue(&worker->ep_notify_queue, worker->ep_notify_queue_buffer, &epn)) {
         return;
     }
 
@@ -1668,14 +1668,14 @@ tglog_worker *tglog_worker_create(int id, tglog_client *client) {
     worker->client = client;
     worker->logger = client->logger;
     worker->metrics = client->metrics;
-    ck_pr_store_32(&worker->state, TGLOG_WORKER_STATE_INIT);
+    tglog_atomic_store_32(&worker->state, TGLOG_WORKER_STATE_INIT);
     worker->last_emergency_supplement_time = 0;  /* Initialize to 0, allow first supplement immediately */
     worker->rand_seed = (unsigned int)(time(NULL) ^ (id * 2654435761u));
 
     /* Init delay close conns, unavailable endpoints, endpoint retry counts hash table */
-    ck_ht_init(&worker->delay_close_conns, CK_HT_MODE_DIRECT, NULL, &tglog_ck_allocator, 8, 20250606);
-    ck_ht_init(&worker->unavailable_endpoints, CK_HT_MODE_BYTESTRING, NULL, &tglog_ck_allocator, 8, 20250606);
-    ck_ht_init(&worker->endpoint_retry_counts, CK_HT_MODE_BYTESTRING, NULL, &tglog_ck_allocator, 8, 20250606);
+    tglog_ht_init(&worker->delay_close_conns, TGLOG_HT_MODE_DIRECT, NULL, &tglog_ck_allocator, 8, 20250606);
+    tglog_ht_init(&worker->unavailable_endpoints, TGLOG_HT_MODE_BYTESTRING, NULL, &tglog_ck_allocator, 8, 20250606);
+    tglog_ht_init(&worker->endpoint_retry_counts, TGLOG_HT_MODE_BYTESTRING, NULL, &tglog_ck_allocator, 8, 20250606);
 
     /* Init message queue */
     unsigned int message_queue_capacity = tglog_ceil_next_power_of_two(worker->client->conf.max_pending_messages);
@@ -1683,14 +1683,14 @@ tglog_worker *tglog_worker_create(int id, tglog_client *client) {
     if (!worker->message_queue_buffer) {
         goto error;
     }
-    ck_ring_init(&worker->message_queue, message_queue_capacity);
+    tglog_ring_init(&worker->message_queue, message_queue_capacity);
 
     /* Init endpoint notify queue */
     worker->ep_notify_queue_buffer = (tglog_endpoint_notify **) calloc(8, sizeof(tglog_endpoint_notify *));
     if (!worker->ep_notify_queue_buffer) {
         goto error;
     }
-    ck_ring_init(&worker->ep_notify_queue, 8);
+    tglog_ring_init(&worker->ep_notify_queue, 8);
 
     /* Get init endpoints */
     worker->endpoints = tglog_client_get_endpoints(client);
@@ -1876,10 +1876,10 @@ static void tglog_worker_drain_and_stop(int fd, short what, void *user_data) {
         }
 
         /* Check delay-close connections tracked in hash */
-        ck_ht_iterator_t it = CK_HT_ITERATOR_INITIALIZER;
-        ck_ht_entry_t *cur = NULL;
-        while (ck_ht_next(&worker->delay_close_conns, &it, &cur)) {
-            tglog_conn *c = (tglog_conn *) ck_ht_entry_key(cur);
+        tglog_ht_iterator_t it = TGLOG_HT_ITERATOR_INITIALIZER;
+        tglog_ht_entry_t *cur = NULL;
+        while (tglog_ht_next(&worker->delay_close_conns, &it, &cur)) {
+            tglog_conn *c = (tglog_conn *) tglog_ht_entry_key(cur);
             if (tglog_conn_get_out_buffer_len(c) > 0) {
                 all_sent = false;
                 tglog_conn_flush(c);
@@ -1912,13 +1912,13 @@ static void tglog_worker_drain_and_stop(int fd, short what, void *user_data) {
     }
 
     /* Update the worker state to closed */
-    ck_pr_cas_32(&worker->state, TGLOG_WORKER_STATE_CLOSING, TGLOG_WORKER_STATE_CLOSED);
+    tglog_atomic_cas_32(&worker->state, TGLOG_WORKER_STATE_CLOSING, TGLOG_WORKER_STATE_CLOSED);
     tglog_info(worker->logger, "Worker is closed, id: %d", worker->id);
 }
 
 static void tglog_worker_on_close(tglog_worker *worker) {
     tglog_debug(worker->logger, "Worker: %d", worker->id);
-    if (!ck_pr_cas_32(&worker->state, TGLOG_WORKER_STATE_READY, TGLOG_WORKER_STATE_CLOSING)) {
+    if (!tglog_atomic_cas_32(&worker->state, TGLOG_WORKER_STATE_READY, TGLOG_WORKER_STATE_CLOSING)) {
         return;
     }
 
@@ -1961,8 +1961,8 @@ static void tglog_worker_on_close(tglog_worker *worker) {
     }
 
     /* Flush all the messages without retry */
-    tglog_info(worker->logger, "Flush all the messages without retry, id: %d, left: %u", worker->id, ck_ring_size(&worker->message_queue));
-    while (ck_ring_size(&worker->message_queue) > 0 || worker->tmp_message != NULL) {
+    tglog_info(worker->logger, "Flush all the messages without retry, id: %d, left: %u", worker->id, tglog_ring_size(&worker->message_queue));
+    while (tglog_ring_size(&worker->message_queue) > 0 || worker->tmp_message != NULL) {
         tglog_worker_handle_msg(worker, false, 100, 0);
     }
 
@@ -1981,14 +1981,14 @@ static void tglog_worker_on_close(tglog_worker *worker) {
 
 static void tglog_worker_close(tglog_worker *worker) {
     /* Check if the worker is ready */
-    if (ck_pr_load_32(&worker->state) != TGLOG_WORKER_STATE_READY) {
+    if (tglog_atomic_load_32(&worker->state) != TGLOG_WORKER_STATE_READY) {
         tglog_warn(worker->logger, "Try to close worker but worker is not ready yet, just stop the worker thread, id: %d", worker->id);
         /* Stop the event loop thread */
         if (worker->thread) {
             event_base_loopbreak(worker->base);
         }
 
-        ck_pr_store_32(&worker->state, TGLOG_WORKER_STATE_CLOSED);
+        tglog_atomic_store_32(&worker->state, TGLOG_WORKER_STATE_CLOSED);
         return;
     }
 
@@ -2075,7 +2075,7 @@ void tglog_worker_destroy(tglog_worker *worker) {
     /* Consume the message queue and destroy the messages */
     if (worker->message_queue_buffer) {
         tglog_message *msg;
-        while (ck_ring_dequeue_mpsc_msg_queue(&worker->message_queue, worker->message_queue_buffer, &msg)) {
+        while (tglog_ring_dequeue_mpsc_msg_queue(&worker->message_queue, worker->message_queue_buffer, &msg)) {
             tglog_message_done(msg, TGLOG_ERR_PRODUCER_CLOSED);
             /* Note: message is freed by tglog_message_done if needed */
         }
@@ -2085,64 +2085,64 @@ void tglog_worker_destroy(tglog_worker *worker) {
     /* Consume the endpoint notify queue and destroy the notifies */
     if (worker->ep_notify_queue_buffer) {
         tglog_endpoint_notify *epn;
-        while (ck_ring_dequeue_mpsc_epn_queue(&worker->ep_notify_queue, worker->ep_notify_queue_buffer, &epn)) {
+        while (tglog_ring_dequeue_mpsc_epn_queue(&worker->ep_notify_queue, worker->ep_notify_queue_buffer, &epn)) {
             tglog_endpoint_notify_destroy(epn);
         }
         free(worker->ep_notify_queue_buffer);
     }
 
     /* Destroy hash tables */
-    ck_ht_iterator_t iterator = CK_HT_ITERATOR_INITIALIZER;
-    ck_ht_entry_t *cursor = NULL;
-    while (ck_ht_next(&worker->endpoint_retry_counts, &iterator, &cursor)) {
-        void *key_ptr = ck_ht_entry_key(cursor);
-        uint16_t key_len = ck_ht_entry_key_length(cursor);
+    tglog_ht_iterator_t iterator = TGLOG_HT_ITERATOR_INITIALIZER;
+    tglog_ht_entry_t *cursor = NULL;
+    while (tglog_ht_next(&worker->endpoint_retry_counts, &iterator, &cursor)) {
+        void *key_ptr = tglog_ht_entry_key(cursor);
+        uint16_t key_len = tglog_ht_entry_key_length(cursor);
 
-        ck_ht_hash_t hash;
-        ck_ht_hash(&hash, &worker->endpoint_retry_counts, key_ptr, key_len);
+        tglog_ht_hash_t hash;
+        tglog_ht_hash(&hash, &worker->endpoint_retry_counts, key_ptr, key_len);
 
-        ck_ht_entry_t entry;
-        ck_ht_entry_key_set(&entry, key_ptr, key_len);
-        if (ck_ht_remove_spmc(&worker->endpoint_retry_counts, hash, &entry)) {
+        tglog_ht_entry_t entry;
+        tglog_ht_entry_key_set(&entry, key_ptr, key_len);
+        if (tglog_ht_remove(&worker->endpoint_retry_counts, hash, &entry)) {
             free(key_ptr);
         }
     }
-    ck_ht_destroy(&worker->endpoint_retry_counts);
+    tglog_ht_destroy(&worker->endpoint_retry_counts);
 
-    ck_ht_iterator_init(&iterator);
+    tglog_ht_iterator_init(&iterator);
     cursor = NULL;
-    while (ck_ht_next(&worker->unavailable_endpoints, &iterator, &cursor)) {
-        void *key_ptr = ck_ht_entry_key(cursor);
-        uint16_t key_len = ck_ht_entry_key_length(cursor);
+    while (tglog_ht_next(&worker->unavailable_endpoints, &iterator, &cursor)) {
+        void *key_ptr = tglog_ht_entry_key(cursor);
+        uint16_t key_len = tglog_ht_entry_key_length(cursor);
 
-        ck_ht_hash_t hash;
-        ck_ht_hash(&hash, &worker->unavailable_endpoints, key_ptr, key_len);
+        tglog_ht_hash_t hash;
+        tglog_ht_hash(&hash, &worker->unavailable_endpoints, key_ptr, key_len);
 
-        ck_ht_entry_t entry;
-        ck_ht_entry_key_set(&entry, key_ptr, key_len);
-        if (ck_ht_remove_spmc(&worker->unavailable_endpoints, hash, &entry)) {
+        tglog_ht_entry_t entry;
+        tglog_ht_entry_key_set(&entry, key_ptr, key_len);
+        if (tglog_ht_remove(&worker->unavailable_endpoints, hash, &entry)) {
             free(key_ptr);
         }
     }
-    ck_ht_destroy(&worker->unavailable_endpoints);
+    tglog_ht_destroy(&worker->unavailable_endpoints);
 
-    ck_ht_iterator_init(&iterator);
+    tglog_ht_iterator_init(&iterator);
     cursor = NULL;
-    while (ck_ht_next(&worker->delay_close_conns, &iterator, &cursor)) {
-        void *key_ptr = ck_ht_entry_key(cursor);
-        uint16_t key_len = ck_ht_entry_key_length(cursor);
+    while (tglog_ht_next(&worker->delay_close_conns, &iterator, &cursor)) {
+        void *key_ptr = tglog_ht_entry_key(cursor);
+        uint16_t key_len = tglog_ht_entry_key_length(cursor);
 
-        ck_ht_hash_t hash;
-        ck_ht_hash(&hash, &worker->delay_close_conns, key_ptr, key_len);
+        tglog_ht_hash_t hash;
+        tglog_ht_hash(&hash, &worker->delay_close_conns, key_ptr, key_len);
 
-        ck_ht_entry_t entry;
-        ck_ht_entry_key_set(&entry, key_ptr, key_len);
-        if (ck_ht_remove_spmc(&worker->delay_close_conns, hash, &entry)) {
+        tglog_ht_entry_t entry;
+        tglog_ht_entry_key_set(&entry, key_ptr, key_len);
+        if (tglog_ht_remove(&worker->delay_close_conns, hash, &entry)) {
             tglog_conn *conn = (tglog_conn *) key_ptr;
             tglog_conn_close(conn);
         }
     }
-    ck_ht_destroy(&worker->delay_close_conns);
+    tglog_ht_destroy(&worker->delay_close_conns);
 
     /* Close all the connections */
     tglog_conn_list_destroy(worker->connecting_conns);
@@ -2217,7 +2217,7 @@ int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_
     }
 
     /* Check worker state */
-    if (ck_pr_load_32(&worker->state) != TGLOG_WORKER_STATE_READY) {
+    if (tglog_atomic_load_32(&worker->state) != TGLOG_WORKER_STATE_READY) {
         tglog_warn(worker->logger, "Try to send msg but worker is not ready yet, worker: %d", worker->id);
         // no need to callback
         if (msg_flag == TGLOG_MSG_F_FREE) {
@@ -2242,7 +2242,7 @@ int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_
     }
 
     /* Try to add to queue */
-    if (!ck_ring_enqueue_mpsc_msg_queue(&worker->message_queue, worker->message_queue_buffer, &msg)) {
+    if (!tglog_ring_enqueue_mpsc_msg_queue(&worker->message_queue, worker->message_queue_buffer, &msg)) {
         tglog_fatal(worker->logger, "Enqueue msg failed, worker: %d", worker->id);
         // no need to callback
         tglog_message_destroy(msg);
@@ -2251,7 +2251,7 @@ int tglog_worker_send(tglog_worker *worker, const char *log_payload, tglog_send_
     }
 
     tglog_metrics_inc_enqueue_msg_count(worker->metrics, worker->id, 1);
-    tglog_debug(worker->logger, "Message queued, queue size: %d", (int) ck_ring_size(&worker->message_queue));
+    tglog_debug(worker->logger, "Message queued, queue size: %d", (int) tglog_ring_size(&worker->message_queue));
 
     return TGLOG_ERR_OK;
 }
@@ -2261,7 +2261,7 @@ void tglog_worker_on_endpoint_updated(tglog_worker *worker,
                                       const tglog_endpoint_list *added,
                                       const tglog_endpoint_list *removed) {
     /* Check if the worker is ready */
-    if (ck_pr_load_32(&worker->state) != TGLOG_WORKER_STATE_READY) {
+    if (tglog_atomic_load_32(&worker->state) != TGLOG_WORKER_STATE_READY) {
         tglog_warn(worker->logger, "Try to update endpoint list but worker is not ready yet, worker: %d", worker->id);
         return;
     }
@@ -2274,7 +2274,7 @@ void tglog_worker_on_endpoint_updated(tglog_worker *worker,
     }
 
     /* Enqueue data */
-    if (!ck_ring_enqueue_mpsc_epn_queue(&worker->ep_notify_queue, worker->ep_notify_queue_buffer, &epn)) {
+    if (!tglog_ring_enqueue_mpsc_epn_queue(&worker->ep_notify_queue, worker->ep_notify_queue_buffer, &epn)) {
         tglog_fatal(worker->logger, "Enqueue endpoint notify failed, worker: %d", worker->id);
         tglog_endpoint_notify_destroy(epn);
         return;
@@ -2288,14 +2288,14 @@ uint64_t tglog_worker_get_msg_queue_size(tglog_worker *worker) {
     if (!worker) {
         return 0;
     }
-    return (uint64_t) ck_ring_size(&worker->message_queue);
+    return (uint64_t) tglog_ring_size(&worker->message_queue);
 }
 
 uint64_t tglog_worker_get_msg_queue_capacity(tglog_worker *worker) {
     if (!worker) {
         return 0;
     }
-    return (uint64_t) ck_ring_capacity(&worker->message_queue);
+    return (uint64_t) tglog_ring_capacity(&worker->message_queue);
 }
 
 void tglog_worker_on_conn_closed(tglog_worker *worker) {

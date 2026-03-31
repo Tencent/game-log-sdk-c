@@ -10,7 +10,7 @@ LIB_DIR = ../lib
 THIRD_PARTY_DIR = ../thirdparty
 EVENT_DIR = $(THIRD_PARTY_DIR)/event
 JEMALLOC_DIR = $(THIRD_PARTY_DIR)/jemalloc
-CK_DIR = $(THIRD_PARTY_DIR)/ck
+COMMON_DIR = ..
 
 # Target libraries
 LIB_STATIC = $(LIB_DIR)/libtglog-st.a
@@ -29,17 +29,16 @@ endif
 
 # Include paths
 INCLUDES = -I. \
+           -I$(COMMON_DIR)/common \
            -I$(EVENT_DIR)/include \
-           -I$(JEMALLOC_DIR)/include \
-           -I$(CK_DIR)/include
+           -I$(JEMALLOC_DIR)/include
 
 # Library paths
 LDFLAGS = -L$(EVENT_DIR)/lib \
-          -L$(JEMALLOC_DIR)/lib \
-          -L$(CK_DIR)/lib
+          -L$(JEMALLOC_DIR)/lib
 
 # Static libraries to link (jemalloc should be linked by final executable, not by the library)
-STATIC_LIBS = event ck
+STATIC_LIBS = event
 
 # Dynamic libraries (platform-specific)
 ifeq ($(shell uname),Darwin)
@@ -59,7 +58,8 @@ SRCS = client.c \
        metrics.c \
        debug_logger.c \
        worker.c \
-       discoverer.c
+       discoverer.c \
+       $(COMMON_DIR)/common/tglog_ht.c
 
 # Object files
 OBJS = $(SRCS:.c=.o)

@@ -12,19 +12,18 @@ TDR_TOOL := $(TSF4G_DIR)/tools/tdr
 # 包含目录
 INCLUDES := -I. \
             -I$(ROOT_DIR)/tglog-st \
+            -I$(ROOT_DIR)/common \
             -I$(ROOT_DIR)/thirdparty/event/include \
-            -I$(ROOT_DIR)/thirdparty/ck/include \
             -I$(TSF4G_DIR)/include
 
 # 库目录
 LIBDIRS := -L$(ROOT_DIR)/lib \
            -L$(ROOT_DIR)/thirdparty/event/lib \
-           -L$(ROOT_DIR)/thirdparty/ck/lib \
            -L$(ROOT_DIR)/thirdparty/jemalloc/lib \
            -L$(TSF4G_DIR)/lib
 
 # 静态库
-STATIC_LIBS := -ltglog-st -levent -lck -ljemalloc \
+STATIC_LIBS := -ltglog-st -levent -ljemalloc \
                -ltapp -lreadline -lncurses -ltsf4g -lscew -lexpat
 
 # 动态库

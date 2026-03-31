@@ -7,7 +7,7 @@
 #include <unistd.h>
 
 /* Third-party library headers */
-#include "ck_pr.h"
+#include "tglog_atomic.h"
 
 /* Project headers */
 #include "tglog.h"
@@ -68,7 +68,7 @@ void callback(const char *payload, int err_code, const char *err_msg, void *user
     if (err_code != 0) {
         printf("callback: %s, %d, %s\n", payload, err_code, err_msg);
     }
-    ck_pr_add_32(&sent, 1);
+    tglog_atomic_add_32(&sent, 1);
 }
 
 int main(int argc, char *argv[]) {
@@ -182,7 +182,7 @@ int main(int argc, char *argv[]) {
     double elapsed = seconds * 1000 + microseconds / 1000.0;
     printf("send time elapsed: %f milliseconds\n", elapsed);
 
-    while (ck_pr_load_32(&sent) < to_send) {
+    while (tglog_atomic_load_32(&sent) < to_send) {
         usleep(1000);
     }
 

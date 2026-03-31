@@ -2,6 +2,7 @@
 #define TGLOG_CONF_H
 
 /* Standard library headers */
+#include <stdbool.h>
 
 /* System headers */
 

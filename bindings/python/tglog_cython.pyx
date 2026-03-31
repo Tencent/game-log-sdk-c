@@ -1,9 +1,9 @@
 # cython: language_level=3
 # distutils: language=c
 # distutils: sources = ../../tglog/client.c ../../tglog/conf.c ../../tglog/conn.c ../../tglog/worker.c ../../tglog/endpoint.c ../../tglog/discoverer.c ../../tglog/request.c ../../tglog/metrics.c ../../tglog/debug_logger.c ../../tglog/err.c ../../tglog/def.c
-# distutils: include_dirs = ../../thirdparty/ck/include ../../thirdparty/event/include ../../tglog
-# distutils: libraries = event ck pthread
-# distutils: library_dirs = ../../lib ../../thirdparty/event/lib ../../thirdparty/ck/lib
+# distutils: include_dirs = ../../common ../../thirdparty/event/include ../../tglog
+# distutils: libraries = event pthread
+# distutils: library_dirs = ../../lib ../../thirdparty/event/lib
 # distutils: extra_compile_args = -O3 -march=native -ffast-math
 
 """
@@ -88,8 +88,8 @@ cdef extern from "client.h":
                           tglog_send_callback callback, void* user_data, char msg_flag) nogil
     int tglog_client_print_metrics(tglog_client* client, char* buffer, size_t size, bint json)
 
-cdef extern from "ck_pr.h":
-    void ck_pr_add_64(uint64_t* target, uint64_t value) nogil
+cdef extern from "tglog_atomic.h":
+    void tglog_atomic_add_64(uint64_t* target, uint64_t value) nogil
 
 cdef extern from "err.h":
     const char* tglog_get_err_msg(int code)
@@ -144,9 +144,9 @@ cdef void fast_callback(const char* payload, int err_code, const char* err_msg, 
     cdef CallbackCounter* counter = <CallbackCounter*>user_data
     if counter != NULL:
         if err_code == 0:
-            ck_pr_add_64(&counter.success_count, 1)
+            tglog_atomic_add_64(&counter.success_count, 1)
         else:
-            ck_pr_add_64(&counter.error_count, 1)
+            tglog_atomic_add_64(&counter.error_count, 1)
 
 
 # High-performance client wrapper

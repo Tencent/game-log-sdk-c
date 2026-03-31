@@ -6,7 +6,7 @@
 /* System headers */
 
 /* Third-party library headers */
-#include "ck_pr.h"
+#include "tglog_atomic.h"
 
 /* Project headers */
 #include "metrics.h"
@@ -75,7 +75,7 @@ void tglog_metrics_destroy(tglog_metrics *metrics) {
 }
 
 static void atomic_increment(uint64_t *counter, int count) {
-    ck_pr_add_64(counter, count);
+    tglog_atomic_add_64(counter, count);
 }
 
 void tglog_metrics_inc_request_msg_count(tglog_metrics *metrics, int worker_id, int count) {
@@ -171,13 +171,13 @@ void tglog_metrics_inc_error_conn_count(tglog_metrics *metrics, int worker_id, i
 
 void tglog_metrics_set_endpoint_count(tglog_metrics *metrics, uint64_t count) {
     if (metrics) {
-        ck_pr_store_64(&metrics->endpoint_count, count);
+        tglog_atomic_store_64(&metrics->endpoint_count, count);
     }
 }
 
 void tglog_metrics_set_worker_endpoint_count(tglog_metrics *metrics, int worker_id, uint64_t count) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
-        ck_pr_store_64(&metrics->workers[worker_id]->endpoint_count, count);
+        tglog_atomic_store_64(&metrics->workers[worker_id]->endpoint_count, count);
     }
 }
 
@@ -197,25 +197,25 @@ void tglog_metrics_inc_remove_endpoint_count(tglog_metrics *metrics, int worker_
 
 void tglog_metrics_set_msg_queue_size(tglog_metrics *metrics, uint64_t size) {
     if (metrics) {
-        ck_pr_store_64(&metrics->msg_queue_size, size);
+        tglog_atomic_store_64(&metrics->msg_queue_size, size);
     }
 }
 
 void tglog_metrics_set_worker_msg_queue_size(tglog_metrics *metrics, int worker_id, uint64_t size) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
-        ck_pr_store_64(&metrics->workers[worker_id]->msg_queue_size, size);
+        tglog_atomic_store_64(&metrics->workers[worker_id]->msg_queue_size, size);
     }
 }
 
 void tglog_metrics_set_msg_queue_capacity(tglog_metrics *metrics, uint64_t capacity) {
     if (metrics) {
-        ck_pr_store_64(&metrics->msg_queue_capacity, capacity);
+        tglog_atomic_store_64(&metrics->msg_queue_capacity, capacity);
     }
 }
 
 void tglog_metrics_set_worker_msg_queue_capacity(tglog_metrics *metrics, int worker_id, uint64_t capacity) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
-        ck_pr_store_64(&metrics->workers[worker_id]->msg_queue_capacity, capacity);
+        tglog_atomic_store_64(&metrics->workers[worker_id]->msg_queue_capacity, capacity);
     }
 }
 
@@ -228,24 +228,24 @@ int tglog_metrics_print(tglog_metrics *metrics, char *buffer, size_t size) {
     int n;
 
     // 读取主metrics的值（原子操作）
-    uint64_t request_msg_count = ck_pr_load_64(&metrics->request_msg_count);
-    uint64_t enqueued_msg_count = ck_pr_load_64(&metrics->enqueued_msg_count);
-    uint64_t dequeued_msg_count = ck_pr_load_64(&metrics->dequeued_msg_count);
-    uint64_t succeeded_msg_count = ck_pr_load_64(&metrics->succeeded_msg_count);
-    uint64_t failed_msg_count = ck_pr_load_64(&metrics->failed_msg_count);
-    uint64_t timeout_msg_count = ck_pr_load_64(&metrics->timeout_msg_count);
-    uint64_t retry_msg_count = ck_pr_load_64(&metrics->retry_msg_count);
-    uint64_t dropped_msg_count = ck_pr_load_64(&metrics->dropped_msg_count);
-    uint64_t eagain_err_count = ck_pr_load_64(&metrics->eagain_err_count);
-    uint64_t rescued_msg_bytes = ck_pr_load_64(&metrics->rescued_msg_bytes);
-    uint64_t opened_conn_count = ck_pr_load_64(&metrics->opened_conn_count);
-    uint64_t closed_conn_count = ck_pr_load_64(&metrics->closed_conn_count);
-    uint64_t error_conn_count = ck_pr_load_64(&metrics->error_conn_count);
-    uint64_t endpoint_count = ck_pr_load_64(&metrics->endpoint_count);
-    uint64_t add_endpoint_count = ck_pr_load_64(&metrics->add_endpoint_count);
-    uint64_t remove_endpoint_count = ck_pr_load_64(&metrics->remove_endpoint_count);
-    uint64_t msg_queue_size = ck_pr_load_64(&metrics->msg_queue_size);
-    uint64_t msg_queue_capacity = ck_pr_load_64(&metrics->msg_queue_capacity);
+    uint64_t request_msg_count = tglog_atomic_load_64(&metrics->request_msg_count);
+    uint64_t enqueued_msg_count = tglog_atomic_load_64(&metrics->enqueued_msg_count);
+    uint64_t dequeued_msg_count = tglog_atomic_load_64(&metrics->dequeued_msg_count);
+    uint64_t succeeded_msg_count = tglog_atomic_load_64(&metrics->succeeded_msg_count);
+    uint64_t failed_msg_count = tglog_atomic_load_64(&metrics->failed_msg_count);
+    uint64_t timeout_msg_count = tglog_atomic_load_64(&metrics->timeout_msg_count);
+    uint64_t retry_msg_count = tglog_atomic_load_64(&metrics->retry_msg_count);
+    uint64_t dropped_msg_count = tglog_atomic_load_64(&metrics->dropped_msg_count);
+    uint64_t eagain_err_count = tglog_atomic_load_64(&metrics->eagain_err_count);
+    uint64_t rescued_msg_bytes = tglog_atomic_load_64(&metrics->rescued_msg_bytes);
+    uint64_t opened_conn_count = tglog_atomic_load_64(&metrics->opened_conn_count);
+    uint64_t closed_conn_count = tglog_atomic_load_64(&metrics->closed_conn_count);
+    uint64_t error_conn_count = tglog_atomic_load_64(&metrics->error_conn_count);
+    uint64_t endpoint_count = tglog_atomic_load_64(&metrics->endpoint_count);
+    uint64_t add_endpoint_count = tglog_atomic_load_64(&metrics->add_endpoint_count);
+    uint64_t remove_endpoint_count = tglog_atomic_load_64(&metrics->remove_endpoint_count);
+    uint64_t msg_queue_size = tglog_atomic_load_64(&metrics->msg_queue_size);
+    uint64_t msg_queue_capacity = tglog_atomic_load_64(&metrics->msg_queue_capacity);
 
     /* Print header */
     n = snprintf(buffer + offset, size - offset,
@@ -331,24 +331,24 @@ int tglog_metrics_print(tglog_metrics *metrics, char *buffer, size_t size) {
         if (!worker) continue;
 
         // 读取worker metrics的值（原子操作）
-        uint64_t w_request_msg_count = ck_pr_load_64(&worker->request_msg_count);
-        uint64_t w_enqueued_msg_count = ck_pr_load_64(&worker->enqueued_msg_count);
-        uint64_t w_dequeued_msg_count = ck_pr_load_64(&worker->dequeued_msg_count);
-        uint64_t w_succeeded_msg_count = ck_pr_load_64(&worker->succeeded_msg_count);
-        uint64_t w_failed_msg_count = ck_pr_load_64(&worker->failed_msg_count);
-        uint64_t w_timeout_msg_count = ck_pr_load_64(&worker->timeout_msg_count);
-        uint64_t w_retry_msg_count = ck_pr_load_64(&worker->retry_msg_count);
-        uint64_t w_dropped_msg_count = ck_pr_load_64(&worker->dropped_msg_count);
-        uint64_t w_eagain_err_count = ck_pr_load_64(&worker->eagain_err_count);
-        uint64_t w_rescued_msg_bytes = ck_pr_load_64(&worker->rescued_msg_bytes);
-        uint64_t w_opened_conn_count = ck_pr_load_64(&worker->opened_conn_count);
-        uint64_t w_closed_conn_count = ck_pr_load_64(&worker->closed_conn_count);
-        uint64_t w_error_conn_count = ck_pr_load_64(&worker->error_conn_count);
-        uint64_t w_endpoint_count = ck_pr_load_64(&worker->endpoint_count);
-        uint64_t w_add_endpoint_count = ck_pr_load_64(&worker->add_endpoint_count);
-        uint64_t w_remove_endpoint_count = ck_pr_load_64(&worker->remove_endpoint_count);
-        uint64_t w_msg_queue_size = ck_pr_load_64(&worker->msg_queue_size);
-        uint64_t w_msg_queue_capacity = ck_pr_load_64(&worker->msg_queue_capacity);
+        uint64_t w_request_msg_count = tglog_atomic_load_64(&worker->request_msg_count);
+        uint64_t w_enqueued_msg_count = tglog_atomic_load_64(&worker->enqueued_msg_count);
+        uint64_t w_dequeued_msg_count = tglog_atomic_load_64(&worker->dequeued_msg_count);
+        uint64_t w_succeeded_msg_count = tglog_atomic_load_64(&worker->succeeded_msg_count);
+        uint64_t w_failed_msg_count = tglog_atomic_load_64(&worker->failed_msg_count);
+        uint64_t w_timeout_msg_count = tglog_atomic_load_64(&worker->timeout_msg_count);
+        uint64_t w_retry_msg_count = tglog_atomic_load_64(&worker->retry_msg_count);
+        uint64_t w_dropped_msg_count = tglog_atomic_load_64(&worker->dropped_msg_count);
+        uint64_t w_eagain_err_count = tglog_atomic_load_64(&worker->eagain_err_count);
+        uint64_t w_rescued_msg_bytes = tglog_atomic_load_64(&worker->rescued_msg_bytes);
+        uint64_t w_opened_conn_count = tglog_atomic_load_64(&worker->opened_conn_count);
+        uint64_t w_closed_conn_count = tglog_atomic_load_64(&worker->closed_conn_count);
+        uint64_t w_error_conn_count = tglog_atomic_load_64(&worker->error_conn_count);
+        uint64_t w_endpoint_count = tglog_atomic_load_64(&worker->endpoint_count);
+        uint64_t w_add_endpoint_count = tglog_atomic_load_64(&worker->add_endpoint_count);
+        uint64_t w_remove_endpoint_count = tglog_atomic_load_64(&worker->remove_endpoint_count);
+        uint64_t w_msg_queue_size = tglog_atomic_load_64(&worker->msg_queue_size);
+        uint64_t w_msg_queue_capacity = tglog_atomic_load_64(&worker->msg_queue_capacity);
 
         n = snprintf(buffer + offset, size - offset,
                      "\n=== Worker %d Statistics ===\n", i);
@@ -434,24 +434,24 @@ int tglog_metrics_print_json(tglog_metrics *metrics, char *buffer, size_t size) 
     int n;
 
     // 读取主metrics的值（原子操作）
-    uint64_t request_msg_count = ck_pr_load_64(&metrics->request_msg_count);
-    uint64_t enqueued_msg_count = ck_pr_load_64(&metrics->enqueued_msg_count);
-    uint64_t dequeued_msg_count = ck_pr_load_64(&metrics->dequeued_msg_count);
-    uint64_t succeeded_msg_count = ck_pr_load_64(&metrics->succeeded_msg_count);
-    uint64_t failed_msg_count = ck_pr_load_64(&metrics->failed_msg_count);
-    uint64_t timeout_msg_count = ck_pr_load_64(&metrics->timeout_msg_count);
-    uint64_t retry_msg_count = ck_pr_load_64(&metrics->retry_msg_count);
-    uint64_t dropped_msg_count = ck_pr_load_64(&metrics->dropped_msg_count);
-    uint64_t eagain_err_count = ck_pr_load_64(&metrics->eagain_err_count);
-    uint64_t rescued_msg_bytes = ck_pr_load_64(&metrics->rescued_msg_bytes);
-    uint64_t opened_conn_count = ck_pr_load_64(&metrics->opened_conn_count);
-    uint64_t closed_conn_count = ck_pr_load_64(&metrics->closed_conn_count);
-    uint64_t error_conn_count = ck_pr_load_64(&metrics->error_conn_count);
-    uint64_t endpoint_count = ck_pr_load_64(&metrics->endpoint_count);
-    uint64_t add_endpoint_count = ck_pr_load_64(&metrics->add_endpoint_count);
-    uint64_t remove_endpoint_count = ck_pr_load_64(&metrics->remove_endpoint_count);
-    uint64_t msg_queue_size = ck_pr_load_64(&metrics->msg_queue_size);
-    uint64_t msg_queue_capacity = ck_pr_load_64(&metrics->msg_queue_capacity);
+    uint64_t request_msg_count = tglog_atomic_load_64(&metrics->request_msg_count);
+    uint64_t enqueued_msg_count = tglog_atomic_load_64(&metrics->enqueued_msg_count);
+    uint64_t dequeued_msg_count = tglog_atomic_load_64(&metrics->dequeued_msg_count);
+    uint64_t succeeded_msg_count = tglog_atomic_load_64(&metrics->succeeded_msg_count);
+    uint64_t failed_msg_count = tglog_atomic_load_64(&metrics->failed_msg_count);
+    uint64_t timeout_msg_count = tglog_atomic_load_64(&metrics->timeout_msg_count);
+    uint64_t retry_msg_count = tglog_atomic_load_64(&metrics->retry_msg_count);
+    uint64_t dropped_msg_count = tglog_atomic_load_64(&metrics->dropped_msg_count);
+    uint64_t eagain_err_count = tglog_atomic_load_64(&metrics->eagain_err_count);
+    uint64_t rescued_msg_bytes = tglog_atomic_load_64(&metrics->rescued_msg_bytes);
+    uint64_t opened_conn_count = tglog_atomic_load_64(&metrics->opened_conn_count);
+    uint64_t closed_conn_count = tglog_atomic_load_64(&metrics->closed_conn_count);
+    uint64_t error_conn_count = tglog_atomic_load_64(&metrics->error_conn_count);
+    uint64_t endpoint_count = tglog_atomic_load_64(&metrics->endpoint_count);
+    uint64_t add_endpoint_count = tglog_atomic_load_64(&metrics->add_endpoint_count);
+    uint64_t remove_endpoint_count = tglog_atomic_load_64(&metrics->remove_endpoint_count);
+    uint64_t msg_queue_size = tglog_atomic_load_64(&metrics->msg_queue_size);
+    uint64_t msg_queue_capacity = tglog_atomic_load_64(&metrics->msg_queue_capacity);
 
     // 开始打印JSON
     n = snprintf(buffer + offset, size - offset, "{\n");
@@ -542,24 +542,24 @@ int tglog_metrics_print_json(tglog_metrics *metrics, char *buffer, size_t size) 
         if (!worker) continue;
 
         // 读取worker metrics的值（原子操作）
-        uint64_t w_request_msg_count = ck_pr_load_64(&worker->request_msg_count);
-        uint64_t w_enqueued_msg_count = ck_pr_load_64(&worker->enqueued_msg_count);
-        uint64_t w_dequeued_msg_count = ck_pr_load_64(&worker->dequeued_msg_count);
-        uint64_t w_succeeded_msg_count = ck_pr_load_64(&worker->succeeded_msg_count);
-        uint64_t w_failed_msg_count = ck_pr_load_64(&worker->failed_msg_count);
-        uint64_t w_timeout_msg_count = ck_pr_load_64(&worker->timeout_msg_count);
-        uint64_t w_retry_msg_count = ck_pr_load_64(&worker->retry_msg_count);
-        uint64_t w_dropped_msg_count = ck_pr_load_64(&worker->dropped_msg_count);
-        uint64_t w_eagain_err_count = ck_pr_load_64(&worker->eagain_err_count);
-        uint64_t w_rescued_msg_bytes = ck_pr_load_64(&worker->rescued_msg_bytes);
-        uint64_t w_opened_conn_count = ck_pr_load_64(&worker->opened_conn_count);
-        uint64_t w_closed_conn_count = ck_pr_load_64(&worker->closed_conn_count);
-        uint64_t w_error_conn_count = ck_pr_load_64(&worker->error_conn_count);
-        uint64_t w_endpoint_count = ck_pr_load_64(&worker->endpoint_count);
-        uint64_t w_add_endpoint_count = ck_pr_load_64(&worker->add_endpoint_count);
-        uint64_t w_remove_endpoint_count = ck_pr_load_64(&worker->remove_endpoint_count);
-        uint64_t w_msg_queue_size = ck_pr_load_64(&worker->msg_queue_size);
-        uint64_t w_msg_queue_capacity = ck_pr_load_64(&worker->msg_queue_capacity);
+        uint64_t w_request_msg_count = tglog_atomic_load_64(&worker->request_msg_count);
+        uint64_t w_enqueued_msg_count = tglog_atomic_load_64(&worker->enqueued_msg_count);
+        uint64_t w_dequeued_msg_count = tglog_atomic_load_64(&worker->dequeued_msg_count);
+        uint64_t w_succeeded_msg_count = tglog_atomic_load_64(&worker->succeeded_msg_count);
+        uint64_t w_failed_msg_count = tglog_atomic_load_64(&worker->failed_msg_count);
+        uint64_t w_timeout_msg_count = tglog_atomic_load_64(&worker->timeout_msg_count);
+        uint64_t w_retry_msg_count = tglog_atomic_load_64(&worker->retry_msg_count);
+        uint64_t w_dropped_msg_count = tglog_atomic_load_64(&worker->dropped_msg_count);
+        uint64_t w_eagain_err_count = tglog_atomic_load_64(&worker->eagain_err_count);
+        uint64_t w_rescued_msg_bytes = tglog_atomic_load_64(&worker->rescued_msg_bytes);
+        uint64_t w_opened_conn_count = tglog_atomic_load_64(&worker->opened_conn_count);
+        uint64_t w_closed_conn_count = tglog_atomic_load_64(&worker->closed_conn_count);
+        uint64_t w_error_conn_count = tglog_atomic_load_64(&worker->error_conn_count);
+        uint64_t w_endpoint_count = tglog_atomic_load_64(&worker->endpoint_count);
+        uint64_t w_add_endpoint_count = tglog_atomic_load_64(&worker->add_endpoint_count);
+        uint64_t w_remove_endpoint_count = tglog_atomic_load_64(&worker->remove_endpoint_count);
+        uint64_t w_msg_queue_size = tglog_atomic_load_64(&worker->msg_queue_size);
+        uint64_t w_msg_queue_capacity = tglog_atomic_load_64(&worker->msg_queue_capacity);
 
         // 打印worker对象（使用下标作为key）
         n = snprintf(buffer + offset, size - offset, "    \"%d\": {\n", i);

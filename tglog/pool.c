@@ -9,7 +9,7 @@
 #include "pool.h"
 #include "request.h"
 #include "conf.h"
-#include "ck_pr.h"
+#include "tglog_atomic.h"
 
 
 tglog_payload_pool *tglog_payload_pool_create(size_t block_size, size_t capacity) {
@@ -33,7 +33,7 @@ tglog_payload_pool *tglog_payload_pool_create(size_t block_size, size_t capacity
     }
 
     /* Initialize the payload stack */
-    ck_stack_init(&pool->payload_stack);
+    tglog_stack_init(&pool->payload_stack);
 
     /* Initialize each payload block in the continuous memory */
     for (size_t i = 0; i < capacity; i++) {
@@ -45,7 +45,7 @@ tglog_payload_pool *tglog_payload_pool_create(size_t block_size, size_t capacity
         payload->size = block_size;
 
         /* Push to stack (using MPMC for thread safety) */
-        ck_stack_push_mpmc(&pool->payload_stack, &payload->stack_entry);
+        tglog_stack_push_mpmc(&pool->payload_stack, &payload->stack_entry);
         pool->allocated++;
     }
 
@@ -65,20 +65,20 @@ void tglog_payload_pool_destroy(tglog_payload_pool *pool) {
     free(pool);
 }
 
-CK_STACK_CONTAINER(tglog_payload, stack_entry, entry_to_payload);
+TGLOG_STACK_CONTAINER(tglog_payload, stack_entry, entry_to_payload);
 
 tglog_payload *tglog_payload_pool_get(tglog_payload_pool *pool) {
     if (!pool) {
         return NULL;
     }
 
-    ck_stack_entry_t *entry = ck_stack_pop_mpmc(&pool->payload_stack);
+    tglog_stack_entry_t *entry = tglog_stack_pop_mpmc(&pool->payload_stack);
     if (entry) {
-        ck_pr_inc_64(&pool->hit_count);
+        tglog_atomic_inc_64(&pool->hit_count);
         return entry_to_payload(entry);
     }
 
-    ck_pr_inc_64(&pool->miss_count);
+    tglog_atomic_inc_64(&pool->miss_count);
     return NULL;
 }
 
@@ -87,8 +87,8 @@ void tglog_payload_pool_put(tglog_payload_pool *pool, tglog_payload *payload) {
         return;
     }
 
-    ck_stack_push_mpmc(&pool->payload_stack, &payload->stack_entry);
-    ck_pr_inc_64(&pool->return_count);
+    tglog_stack_push_mpmc(&pool->payload_stack, &payload->stack_entry);
+    tglog_atomic_inc_64(&pool->return_count);
 }
 
 void *tglog_payload_pool_get_buf(tglog_payload_pool *pool) {
@@ -234,13 +234,13 @@ tglog_message_pool *tglog_message_pool_create(size_t capacity) {
     pool->allocated = 0;
 
     /* Initialize the message stack */
-    ck_stack_init(&pool->msg_stack);
+    tglog_stack_init(&pool->msg_stack);
 
     /* Pre-fill the message stack with all message objects */
     for (size_t i = 0; i < capacity; i++) {
         tglog_message *msg = &pool->msg_array[i];
         msg->pool = pool;
-        ck_stack_push_mpmc(&pool->msg_stack, &msg->stack_entry);
+        tglog_stack_push_mpmc(&pool->msg_stack, &msg->stack_entry);
         pool->allocated++;
     }
 
@@ -261,24 +261,24 @@ void tglog_message_pool_destroy(tglog_message_pool *pool) {
     free(pool);
 }
 
-CK_STACK_CONTAINER(tglog_message, stack_entry, entry_to_message);
+TGLOG_STACK_CONTAINER(tglog_message, stack_entry, entry_to_message);
 
 tglog_message *tglog_message_pool_get(tglog_message_pool *pool) {
-    ck_stack_entry_t *entry = ck_stack_pop_mpmc(&pool->msg_stack);
+    tglog_stack_entry_t *entry = tglog_stack_pop_mpmc(&pool->msg_stack);
     if (entry) {
-        ck_pr_inc_64(&pool->hit_count);
+        tglog_atomic_inc_64(&pool->hit_count);
         tglog_message *msg = entry_to_message(entry);
         msg->pool = pool;
         return msg;
     }
 
-    ck_pr_inc_64(&pool->miss_count);
+    tglog_atomic_inc_64(&pool->miss_count);
     return NULL;
 }
 
 void tglog_message_pool_put(tglog_message_pool *pool, tglog_message *msg) {
-    ck_stack_push_mpmc(&pool->msg_stack, &msg->stack_entry);
-    ck_pr_inc_64(&pool->return_count);
+    tglog_stack_push_mpmc(&pool->msg_stack, &msg->stack_entry);
+    tglog_atomic_inc_64(&pool->return_count);
 }
 
 int tglog_mem_pool_stats_print(tglog_mem_pool_stats *stats, char *buffer, size_t size) {
@@ -507,12 +507,12 @@ void tglog_mem_pool_destroy(tglog_mem_pool *pool) {
     free(pool);
 }
 
-static size_t ck_stack_count(ck_stack_t *stack) {
+static size_t tglog_stack_count(tglog_stack_t *stack) {
     size_t count = 0;
-    ck_stack_entry_t *entry = CK_STACK_FIRST(stack);
+    tglog_stack_entry_t *entry = TGLOG_STACK_FIRST(stack);
     while (entry != NULL) {
         count++;
-        entry = CK_STACK_NEXT(entry);
+        entry = TGLOG_STACK_NEXT(entry);
     }
     return count;
 }
@@ -529,9 +529,9 @@ bool tglog_mem_pool_get_stats(tglog_mem_pool *pool, tglog_mem_pool_stats *stats)
     if (pool->msg_pool) {
         tglog_message_pool *msg_pool = pool->msg_pool;
         stats->msg_pool_capacity = msg_pool->capacity;
-        stats->msg_pool_hit_count = ck_pr_load_64(&msg_pool->hit_count);
-        stats->msg_pool_miss_count = ck_pr_load_64(&msg_pool->miss_count);
-        stats->msg_pool_return_count = ck_pr_load_64(&msg_pool->return_count);
+        stats->msg_pool_hit_count = tglog_atomic_load_64(&msg_pool->hit_count);
+        stats->msg_pool_miss_count = tglog_atomic_load_64(&msg_pool->miss_count);
+        stats->msg_pool_return_count = tglog_atomic_load_64(&msg_pool->return_count);
 
         /* Calculate hit rate */
         uint64_t total_requests = stats->msg_pool_hit_count + stats->msg_pool_miss_count;
@@ -552,12 +552,12 @@ bool tglog_mem_pool_get_stats(tglog_mem_pool *pool, tglog_mem_pool_stats *stats)
             if (p_pool) {
                 stats->payload_stats[i].block_size = p_pool->block_size;
                 stats->payload_stats[i].capacity = p_pool->capacity;
-                stats->payload_stats[i].hit_count = ck_pr_load_64(&p_pool->hit_count);
-                stats->payload_stats[i].miss_count = ck_pr_load_64(&p_pool->miss_count);
-                stats->payload_stats[i].return_count = ck_pr_load_64(&p_pool->return_count);
+                stats->payload_stats[i].hit_count = tglog_atomic_load_64(&p_pool->hit_count);
+                stats->payload_stats[i].miss_count = tglog_atomic_load_64(&p_pool->miss_count);
+                stats->payload_stats[i].return_count = tglog_atomic_load_64(&p_pool->return_count);
 
                 /* Calculate current free count */
-                stats->payload_stats[i].current_free = ck_stack_count(&p_pool->payload_stack);
+                stats->payload_stats[i].current_free = tglog_stack_count(&p_pool->payload_stack);
 
                 /* Calculate hit rate */
                 uint64_t requests = stats->payload_stats[i].hit_count + stats->payload_stats[i].miss_count;

@@ -13,8 +13,8 @@
 #endif
 
 /* Third-party library headers */
-#include "ck_ht.h"
-#include "ck_ring.h"
+#include "tglog_ht.h"
+#include "tglog_ring.h"
 
 /* Project headers */
 #include "client.h"
@@ -34,14 +34,14 @@ typedef struct tglog_worker {
     tglog_debug_logger *logger;                     /* logger */
     tglog_metrics *metrics;                         /* metrics */
 
-    ck_ht_t delay_close_conns;                      /* delay close connections, key: tglog_conn*, value: int */
-    ck_ht_t unavailable_endpoints;                  /* unavailable endpoints, key: char*, value: time_t, when endpoint became unavailable */
-    ck_ht_t endpoint_retry_counts;                  /* unavailable endpoint recover try counts, key: char*, value: int, retry count */
+    tglog_ht_t delay_close_conns;                      /* delay close connections, key: tglog_conn*, value: int */
+    tglog_ht_t unavailable_endpoints;                  /* unavailable endpoints, key: char*, value: time_t, when endpoint became unavailable */
+    tglog_ht_t endpoint_retry_counts;                  /* unavailable endpoint recover try counts, key: char*, value: int, retry count */
 
-    ck_ring_t message_queue;                        /* message queue */
+    tglog_ring_t message_queue;                        /* message queue */
     tglog_message **message_queue_buffer;           /* message queue buffer */
 
-    ck_ring_t ep_notify_queue;                      /* endpoint notify queue */
+    tglog_ring_t ep_notify_queue;                      /* endpoint notify queue */
     tglog_endpoint_notify **ep_notify_queue_buffer; /* endpoint notify queue buffer */
 
     tglog_endpoint_list *endpoints;                 /* endpoints */

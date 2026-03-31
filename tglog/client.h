@@ -2,6 +2,7 @@
 #define TGLOG_CLIENT_H
 
 /* Standard library headers */
+#include <stdbool.h>
 #include <stdint.h>
 
 /* System headers */

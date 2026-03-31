@@ -7,7 +7,6 @@ file(GLOB TEST_SOURCES "*.c")
 set(LIBDIRS
         ${CMAKE_SOURCE_DIR}/lib
         ${CMAKE_SOURCE_DIR}/thirdparty/event/lib
-        ${CMAKE_SOURCE_DIR}/thirdparty/ck/lib
         ${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/lib
 )
 
@@ -15,15 +14,15 @@ set(LIBDIRS
 set(INCLUDES
         .
         ${CMAKE_SOURCE_DIR}/tglog
+        ${CMAKE_SOURCE_DIR}/common
         ${CMAKE_SOURCE_DIR}/thirdparty/event/include
-        ${CMAKE_SOURCE_DIR}/thirdparty/ck/include
 )
 
 # 设置编译选项
 if (APPLE)
     set(TEST_CFLAGS -Wall -Werror -Wno-typedef-redefinition -O0 -g -std=c99 -D_GNU_SOURCE)
 else ()
-    set(TEST_CFLAGS -Wall -Werror -O0 -g -std=c99 -D_GNU_SOURCE -D_REENTRANT)
+    set(TEST_CFLAGS -Wall -Werror -O0 -g -std=c99 -D_GNU_SOURCE -D_REENTRANT -mcx16)
 endif ()
 
 # 为每个 .c 文件创建一个可执行文件
@@ -46,14 +45,14 @@ foreach (test_source ${TEST_SOURCES})
     # 所有平台都使用静态链接
     if (APPLE)
         target_link_libraries(${test_name} PRIVATE
-                tglog_static event event_pthreads ck jemalloc
+                tglog_static event event_pthreads jemalloc
                 m z pthread
         )
     else ()
         # Linux 系统
         target_link_options(${test_name} PRIVATE -Wl,-dn)
         target_link_libraries(${test_name} PRIVATE
-                tglog_static event event_pthreads ck jemalloc
+                tglog_static event event_pthreads jemalloc
         )
         target_link_options(${test_name} PRIVATE -Wl,-dy)
         target_link_libraries(${test_name} PRIVATE
@@ -62,7 +61,7 @@ foreach (test_source ${TEST_SOURCES})
     endif ()
 
     # 确保依赖项已经构建
-    add_dependencies(${test_name} tglog_static jemalloc event event_pthreads ck)
+    add_dependencies(${test_name} tglog_static jemalloc event event_pthreads)
 
     # 设置输出目录为当前目录
     set_target_properties(${test_name} PROPERTIES

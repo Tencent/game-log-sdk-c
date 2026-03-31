@@ -6,6 +6,7 @@ set(EXECUTABLE2 ${CMAKE_SOURCE_DIR}/lib/libtglog.so)
 
 # 收集所有源文件
 file(GLOB SRCS "*.c")
+list(APPEND SRCS "${CMAKE_SOURCE_DIR}/common/tglog_ht.c")
 
 # 创建对象文件
 add_library(tglog_objs OBJECT ${SRCS})
@@ -15,7 +16,7 @@ target_compile_options(tglog_objs PRIVATE
         -Wall -Werror -std=c99
         -D_GNU_SOURCE -D_REENTRANT
         -Wno-typedef-redefinition
-        -fPIC -m64 -pipe
+        -fPIC -m64 -pipe -mcx16
 )
 
 # 优化选项由根目录的 CMAKE_C_FLAGS 控制
@@ -24,12 +25,12 @@ target_compile_options(tglog_objs PRIVATE
 # 设置包含目录
 target_include_directories(tglog_objs PRIVATE
         .
+        ${CMAKE_SOURCE_DIR}/common
         ${CMAKE_SOURCE_DIR}/thirdparty/event/include
-        ${CMAKE_SOURCE_DIR}/thirdparty/ck/include
 )
 
 # 确保依赖项已经构建
-add_dependencies(tglog_objs jemalloc_build libevent_build ck_build event ck)
+add_dependencies(tglog_objs jemalloc_build libevent_build event)
 
 # 创建静态库
 add_library(tglog_static STATIC $<TARGET_OBJECTS:tglog_objs>)
@@ -53,13 +54,12 @@ if (BUILD_SHARED)
     target_link_directories(tglog_shared PRIVATE
             ${CMAKE_SOURCE_DIR}/thirdparty/event/lib
             ${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/lib
-            ${CMAKE_SOURCE_DIR}/thirdparty/ck/lib
     )
 
     # 根据系统平台设置链接选项
     if (APPLE)
         target_link_libraries(tglog_shared PRIVATE
-                event event_pthreads ck
+                event event_pthreads
                 m z dl pthread
         )
     else ()
@@ -69,7 +69,7 @@ if (BUILD_SHARED)
                 -Wl,-Bstatic
         )
         target_link_libraries(tglog_shared PRIVATE
-                event event_pthreads ck
+                event event_pthreads
         )
         target_link_options(tglog_shared PRIVATE
                 -Wl,-Bdynamic

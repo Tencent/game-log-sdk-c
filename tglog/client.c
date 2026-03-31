@@ -5,7 +5,7 @@
 
 /* Third-party library headers */
 #include "event2/thread.h"
-#include "ck_pr.h"
+#include "tglog_atomic.h"
 
 /* Project headers */
 #include "client.h"
@@ -179,7 +179,7 @@ void tglog_client_destroy(tglog_client *client) {
 }
 
 static tglog_worker *tglog_client_get_worker(tglog_client *client) {
-    uint64_t index = ck_pr_faa_64(&client->worker_index, 1);
+    uint64_t index = tglog_atomic_faa_64(&client->worker_index, 1);
     return client->workers[index % client->worker_count];
 }
 

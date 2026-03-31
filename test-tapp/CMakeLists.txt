@@ -43,7 +43,6 @@ file(GLOB TEST_SOURCES
 set(LIBDIRS
     ${CMAKE_SOURCE_DIR}/lib
     ${CMAKE_SOURCE_DIR}/thirdparty/event/lib
-    ${CMAKE_SOURCE_DIR}/thirdparty/ck/lib
     ${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/lib
     ${TSF4G_DIR}/lib
 )
@@ -53,7 +52,6 @@ set(INCLUDES
     .
     ${CMAKE_SOURCE_DIR}/tglog-st
     ${CMAKE_SOURCE_DIR}/thirdparty/event/include
-    ${CMAKE_SOURCE_DIR}/thirdparty/ck/include
     ${TSF4G_DIR}/include
 )
 
@@ -79,7 +77,7 @@ target_link_directories(tglog_tapp PRIVATE ${LIBDIRS})
 # 链接库
 if (APPLE)
     target_link_libraries(tglog_tapp PRIVATE
-        tglog-st_static event ck jemalloc
+        tglog-st_static event jemalloc
         tapp readline ncurses tsf4g scew expat
         m z pthread
     )
@@ -87,7 +85,7 @@ else ()
     # Linux 系统
     target_link_options(tglog_tapp PRIVATE -Wl,-dn)
     target_link_libraries(tglog_tapp PRIVATE
-        tglog-st_static event ck jemalloc
+        tglog-st_static event jemalloc
         tapp readline ncurses tsf4g scew expat
     )
     target_link_options(tglog_tapp PRIVATE -Wl,-dy)
@@ -97,7 +95,7 @@ else ()
 endif ()
 
 # 确保依赖项已经构建
-add_dependencies(tglog_tapp tglog-st_static jemalloc event ck)
+add_dependencies(tglog_tapp tglog-st_static jemalloc event)
 
 # 设置输出目录为当前目录
 set_target_properties(tglog_tapp PROPERTIES

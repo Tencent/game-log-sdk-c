@@ -2,12 +2,13 @@
 #define TGLOG_POOL_H
 
 /* Standard library headers */
+#include <stdbool.h>
 #include <stdio.h>
 
 /* System headers */
 
 /* Third-party library headers */
-#include "ck_stack.h"
+#include "tglog_stack.h"
 
 /* Project headers */
 
@@ -18,11 +19,11 @@ extern "C" {
 typedef struct tglog_payload {
     void *data;                      /* payload data */
     size_t size;                     /* payload size */
-    ck_stack_entry_t stack_entry;    /* stack entry */
+    tglog_stack_entry_t stack_entry;    /* stack entry */
 } tglog_payload;
 
 typedef struct tglog_payload_pool {
-    ck_stack_t payload_stack;       /* payload stack */
+    tglog_stack_t payload_stack;       /* payload stack */
     void *payload_array;            /* payload array */
     size_t block_size;              /* block size */
     size_t capacity;                /* pool capacity */
@@ -112,7 +113,7 @@ tglog_payload_pool *tglog_payload_pools_get_pool(tglog_payload_pools *pools, siz
 
 typedef struct tglog_message tglog_message;
 typedef struct tglog_message_pool {
-    ck_stack_t msg_stack;           /* message stack */
+    tglog_stack_t msg_stack;           /* message stack */
     tglog_message *msg_array;       /* message array */
     size_t capacity;                /* pool capacity */
     size_t allocated;               /* allocated messages */
