@@ -2,7 +2,10 @@
 
 /* System headers */
 #ifdef _WIN32
-/* Windows specific headers */
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <mstcpip.h>
+#include "tglog_platform.h"
 #else
 
 #include <arpa/inet.h>
@@ -53,14 +56,19 @@ static tglog_backoff tglog_batch_retry_backoff = {
         0.2     /* jitter */
 };
 
-static void *tglog_worker_thread(void *user_data) {
+#ifdef _WIN32
+static DWORD WINAPI tglog_worker_thread(LPVOID user_data)
+#else
+static void *tglog_worker_thread(void *user_data)
+#endif
+{
     tglog_worker *worker = (tglog_worker *) user_data;
     struct event_base *base = worker->base;
 
     tglog_debug(worker->logger, "Worker: %d thread started", worker->id);
     event_base_dispatch(base);
     tglog_debug(worker->logger, "Worker: %d thread stopped", worker->id);
-    return NULL;
+    return 0;
 }
 
 static void tglog_worker_set_endpoint_retry_count(tglog_worker *worker, char *addr, int value) {
@@ -699,13 +707,13 @@ static bool tglog_worker_parse_host_port(tglog_worker *worker, const char *addr,
     return true;
 }
 
-static int tglog_worker_init_socket(tglog_worker *worker, char *addr, int af) {
+static evutil_socket_t tglog_worker_init_socket(tglog_worker *worker, char *addr, int af) {
     int sock_type = (worker->client->conf.network == TGLOG_NETWORK_TCP) ? SOCK_STREAM : SOCK_DGRAM;
-    int sock = socket(af, sock_type, 0);
+    evutil_socket_t sock = socket(af, sock_type, 0);
 
-    if (sock < 0) {
+    if (sock == -1) {
         tglog_error(worker->logger, "Failed to create socket for %s: %s, worker: %d",
-                    addr, strerror(errno), worker->id);
+                    addr, tglog_socket_error_str(0), worker->id);
         return -1;
     }
 
@@ -718,30 +726,39 @@ static int tglog_worker_init_socket(tglog_worker *worker, char *addr, int af) {
 
     /* Set socket options */
     if (worker->client->conf.socket_recv_buffer_size > 0) {
-        setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &worker->client->conf.socket_recv_buffer_size, sizeof(worker->client->conf.socket_recv_buffer_size));
+        setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (const char *)&worker->client->conf.socket_recv_buffer_size, sizeof(worker->client->conf.socket_recv_buffer_size));
     }
     if (worker->client->conf.socket_send_buffer_size > 0) {
-        setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &worker->client->conf.socket_send_buffer_size, sizeof(worker->client->conf.socket_send_buffer_size));
+        setsockopt(sock, SOL_SOCKET, SO_SNDBUF, (const char *)&worker->client->conf.socket_send_buffer_size, sizeof(worker->client->conf.socket_send_buffer_size));
     }
 
     if (worker->client->conf.network == TGLOG_NETWORK_TCP) {
         int keepalive = 1;
         int keep_idle = 300;
 
-        setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive));
+        setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, (const char *)&keepalive, sizeof(keepalive));
 
 //        int no_delay = 1;
-//        setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &no_delay, sizeof(no_delay));
+//        setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&no_delay, sizeof(no_delay));
 //        int quick_ack = 1;
-//        setsockopt(sock, IPPROTO_TCP, TCP_QUICKACK, &quick_ack, sizeof(quick_ack));
+//        setsockopt(sock, IPPROTO_TCP, TCP_QUICKACK, (const char *)&quick_ack, sizeof(quick_ack));
 #ifdef  __APPLE__
-        setsockopt(sock, IPPROTO_TCP, TCP_KEEPALIVE, &keep_idle, sizeof(keep_idle));
+        setsockopt(sock, IPPROTO_TCP, TCP_KEEPALIVE, (const char *)&keep_idle, sizeof(keep_idle));
+#elif defined(_WIN32)
+        /* Windows keepalive via WSAIoctl */
+        struct tcp_keepalive keepalive_vals;
+        keepalive_vals.onoff = 1;
+        keepalive_vals.keepalivetime = keep_idle * 1000;    /* milliseconds */
+        keepalive_vals.keepaliveinterval = 60 * 1000;       /* milliseconds */
+        DWORD bytes_returned = 0;
+        WSAIoctl((SOCKET)sock, SIO_KEEPALIVE_VALS, &keepalive_vals, sizeof(keepalive_vals),
+                 NULL, 0, &bytes_returned, NULL, NULL);
 #else
         int keep_interval = 60;
         int keep_cnt = 5;
-        setsockopt(sock, IPPROTO_TCP, TCP_KEEPIDLE, &keep_idle, sizeof(keep_idle));
-        setsockopt(sock, IPPROTO_TCP, TCP_KEEPINTVL, &keep_interval, sizeof(keep_interval));
-        setsockopt(sock, IPPROTO_TCP, TCP_KEEPCNT, &keep_cnt, sizeof(keep_cnt));
+        setsockopt(sock, IPPROTO_TCP, TCP_KEEPIDLE, (const char *)&keep_idle, sizeof(keep_idle));
+        setsockopt(sock, IPPROTO_TCP, TCP_KEEPINTVL, (const char *)&keep_interval, sizeof(keep_interval));
+        setsockopt(sock, IPPROTO_TCP, TCP_KEEPCNT, (const char *)&keep_cnt, sizeof(keep_cnt));
 #endif
     }
 
@@ -763,18 +780,18 @@ static tglog_conn *tglog_worker_dial_new_conn(tglog_worker *worker, char *addr, 
 
     /* Initialize socket */
     char *network = worker->client->conf.network == TGLOG_NETWORK_TCP ? "tcp" : "udp";
-    int sock = tglog_worker_init_socket(worker, addr, af);
+    evutil_socket_t sock = tglog_worker_init_socket(worker, addr, af);
     if (sock < 0) {
-        tglog_error(worker->logger, "Create socket failed, worker: %d, addr: %s://%s, errno: %d",
-                    worker->id, network, addr, errno);
+        tglog_error(worker->logger, "Create socket failed, worker: %d, addr: %s://%s, error: %s",
+                    worker->id, network, addr, tglog_socket_error_str(0));
         return NULL;
     }
 
     /* Create bufferevent */
     struct bufferevent *bev = bufferevent_socket_new(worker->base, sock, BEV_OPT_CLOSE_ON_FREE);
     if (!bev) {
-        tglog_error(worker->logger, "Connect to server failed, worker: %d, addr: %s://%s, errno: %d",
-                    worker->id, network, addr, evutil_socket_geterror(sock));
+        tglog_error(worker->logger, "Connect to server failed, worker: %d, addr: %s://%s, error: %s",
+                    worker->id, network, addr, tglog_socket_error_str(evutil_socket_geterror(sock)));
         evutil_closesocket(sock);
         return NULL;
     }
@@ -823,8 +840,8 @@ static tglog_conn *tglog_worker_dial_new_conn(tglog_worker *worker, char *addr, 
     }
 
     if (bufferevent_socket_connect(bev, (struct sockaddr *) &serv_addr, addr_len) < 0) {
-        tglog_error(worker->logger, "Connect to server error, worker: %d, addr: %s://%s, errno: %d",
-                    worker->id, network, addr, evutil_socket_geterror(sock));
+        tglog_error(worker->logger, "Connect to server error, worker: %d, addr: %s://%s, error: %s",
+                    worker->id, network, addr, tglog_socket_error_str(evutil_socket_geterror(sock)));
         /* tglog_conn_close will free bev */
         tglog_conn_close(conn);
         return NULL;

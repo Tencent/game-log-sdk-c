@@ -3,8 +3,18 @@
 #include <string.h>
 
 /* System headers */
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <windows.h>
+#pragma comment(lib, "ws2_32.lib")
+#else
 #include <arpa/inet.h>
 #include <netdb.h>
+#endif
+
+/* Platform compatibility */
+#include "tglog_platform.h"
 
 /* Third-party library headers */
 #include "event2/event.h"
@@ -117,9 +127,13 @@ tglog_discoverer *tglog_discoverer_create(const char *domain, int port, int inte
             return NULL;
         }
 
+#ifdef _WIN32
+        Sleep(10); /* 10ms */
+#else
         tv.tv_sec = 0;
         tv.tv_usec = 10000; /* 10ms */
         select(0, NULL, NULL, NULL, &tv);
+#endif
     }
 
     if (!discoverer->endpoints || discoverer->endpoints->count == 0) {

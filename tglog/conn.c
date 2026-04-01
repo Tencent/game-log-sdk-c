@@ -1,6 +1,9 @@
 /* Standard library headers */
 #include <stdlib.h>
 
+/* System headers */
+#include "tglog_platform.h"
+
 /* Third-party library headers */
 #include "event2/buffer.h"
 
@@ -69,7 +72,7 @@ void tglog_conn_close(tglog_conn *conn) {
 }
 
 ssize_t tglog_conn_send(tglog_conn *conn, const void *data, size_t len) {
-    if (!conn || !conn->fd || !conn->bev || !data || len == 0) {
+    if (!conn || conn->fd < 0 || !conn->bev || !data || len == 0) {
         return -1;
     }
 
@@ -83,22 +86,18 @@ ssize_t tglog_conn_send(tglog_conn *conn, const void *data, size_t len) {
      * 的，只能通过写socket成功表示发送成功，所以我们这里直接把数据写到socket上，这样可以减少一次数据拷贝，也可以及时的知道数据是否发送成功并触发回调。
     */
     /*return bufferevent_write(conn->bev, data, len);*/
-#ifdef _WIN32
-    return send(conn->fd, data, len, 0);
-#else
     return send(conn->fd, data, len, MSG_NOSIGNAL);
-#endif
 }
 
 ssize_t tglog_conn_sendv(tglog_conn *conn, const struct iovec *iov, int iovcnt) {
-    if (!conn || !conn->fd || !conn->bev || !iov || iovcnt <= 0) {
+    if (!conn || conn->fd < 0 || !conn->bev || !iov || iovcnt <= 0) {
         return -1;
     }
     return writev(conn->fd, iov, iovcnt);
 }
 
 ssize_t tglog_conn_send_with_bufferevent(tglog_conn *conn, const void *data, size_t len) {
-    if (!conn || !conn->fd || !conn->bev || conn->network != TGLOG_NETWORK_TCP || !data || len == 0) {
+    if (!conn || conn->fd < 0 || !conn->bev || conn->network != TGLOG_NETWORK_TCP || !data || len == 0) {
         return -1;
     }
 
@@ -121,18 +120,15 @@ ssize_t tglog_conn_send_with_bufferevent(tglog_conn *conn, const void *data, siz
     }
 
     /* If out_buf is empty, try to send directly */
-#ifdef _WIN32
-    ssize_t sent = send(conn->fd, data, len, 0);
-#else
     ssize_t sent = send(conn->fd, data, len, MSG_NOSIGNAL);
-#endif
 
     /* Send success */
     if (sent == (ssize_t) len) {
         return sent;
     }
 
-    bool eagain = errno == EAGAIN || errno == EWOULDBLOCK;
+    int sock_err = evutil_socket_geterror(conn->fd);
+    bool eagain = sock_err == EAGAIN || sock_err == EWOULDBLOCK;
     if (eagain) {
         tglog_worker_on_conn_eagain(conn->worker);
     }
@@ -156,7 +152,7 @@ ssize_t tglog_conn_send_with_bufferevent(tglog_conn *conn, const void *data, siz
 }
 
 ssize_t tglog_conn_sendv_with_bufferevent(tglog_conn *conn, const struct iovec *iov, int iovcnt) {
-    if (!conn || !conn->fd || !conn->bev || conn->network != TGLOG_NETWORK_TCP || !iov || iovcnt <= 0) {
+    if (!conn || conn->fd < 0 || !conn->bev || conn->network != TGLOG_NETWORK_TCP || !iov || iovcnt <= 0) {
         return -1;
     }
 
@@ -196,9 +192,9 @@ ssize_t tglog_conn_sendv_with_bufferevent(tglog_conn *conn, const struct iovec *
     bool eagain = false;
     ssize_t sent = writev(conn->fd, iov, iovcnt);
     if (sent < 0) {
-        // tglog_error may update errno, we need to save it first
-        eagain = errno == EAGAIN || errno == EWOULDBLOCK;
-        tglog_error(conn->worker->logger, "writev failed: %s", strerror(errno));
+        int sock_err = evutil_socket_geterror(conn->fd);
+        eagain = sock_err == EAGAIN || sock_err == EWOULDBLOCK;
+        tglog_error(conn->worker->logger, "writev failed: %s", tglog_socket_error_str(0));
     }
 
     /* Send success */
@@ -254,7 +250,7 @@ ssize_t tglog_conn_sendv_with_bufferevent(tglog_conn *conn, const struct iovec *
 }
 
 ssize_t tglog_conn_send_with_buffer(tglog_conn *conn, struct evbuffer *buf, size_t len) {
-    if (!conn || !conn->fd || !conn->bev || conn->network != TGLOG_NETWORK_TCP || !buf) {
+    if (!conn || conn->fd < 0 || !conn->bev || conn->network != TGLOG_NETWORK_TCP || !buf) {
         return -1;
     }
 
@@ -340,7 +336,7 @@ struct evbuffer *tglog_conn_remove_pending_data(tglog_conn *conn) {
 }
 
 ssize_t tglog_conn_recv(tglog_conn *conn, void *buf, size_t buf_size, size_t *recv_len) {
-    if (!conn || !conn->fd || !conn->bev || !buf || buf_size == 0 || !recv_len) {
+    if (!conn || conn->fd < 0 || !conn->bev || !buf || buf_size == 0 || !recv_len) {
         return -1;
     }
 

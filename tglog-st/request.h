@@ -6,7 +6,7 @@
 #include <time.h>
 
 /* System headers */
-#include <sys/uio.h>
+#include "tglog_platform.h"
 
 /* Third-party library headers */
 #include "tglog_ring.h"

@@ -7,18 +7,35 @@
 #include <Python.h>
 #include <structmember.h>
 #include "tglog.h"
-#include <pthread.h>
 #include <string.h>
+
+/* Platform-specific mutex abstraction */
+#ifdef _WIN32
+    #include <windows.h>
+    typedef CRITICAL_SECTION tglog_py_mutex_t;
+    #define tglog_py_mutex_init(m) InitializeCriticalSection(m)
+    #define tglog_py_mutex_destroy(m) DeleteCriticalSection(m)
+    #define tglog_py_mutex_lock(m) EnterCriticalSection(m)
+    #define tglog_py_mutex_unlock(m) LeaveCriticalSection(m)
+#else
+    #include <pthread.h>
+    typedef pthread_mutex_t tglog_py_mutex_t;
+    #define tglog_py_mutex_init(m) pthread_mutex_init(m, NULL)
+    #define tglog_py_mutex_destroy(m) pthread_mutex_destroy(m)
+    #define tglog_py_mutex_lock(m) pthread_mutex_lock(m)
+    #define tglog_py_mutex_unlock(m) pthread_mutex_unlock(m)
+#endif
 
 /* Global initialization flag */
 static int g_initialized = 0;
-static pthread_mutex_t g_init_lock = PTHREAD_MUTEX_INITIALIZER;
+static tglog_py_mutex_t g_init_lock;
+static int g_lock_initialized = 0;
 
 /* Callback counter for performance testing */
 typedef struct {
     uint64_t success_count;
     uint64_t error_count;
-    pthread_mutex_t lock;
+    tglog_py_mutex_t lock;
 } CallbackCounter;
 
 /* Python TglogClient object */
@@ -35,24 +52,24 @@ typedef struct {
 static void fast_callback(const char *payload, int err_code, const char *err_msg, void *user_data) {
     CallbackCounter *counter = (CallbackCounter *)user_data;
     if (counter) {
-        pthread_mutex_lock(&counter->lock);
+        tglog_py_mutex_lock(&counter->lock);
         if (err_code == 0) {
             counter->success_count++;
         } else {
             counter->error_count++;
         }
-        pthread_mutex_unlock(&counter->lock);
+        tglog_py_mutex_unlock(&counter->lock);
     }
 }
 
 /* Initialize tglog (call once) */
 static void ensure_initialized(void) {
-    pthread_mutex_lock(&g_init_lock);
+    tglog_py_mutex_lock(&g_init_lock);
     if (!g_initialized) {
         tglog_use_thread();
         g_initialized = 1;
     }
-    pthread_mutex_unlock(&g_init_lock);
+    tglog_py_mutex_unlock(&g_init_lock);
 }
 
 /* Destructor */
@@ -62,7 +79,7 @@ static void TglogClient_dealloc(TglogClientObject *self) {
         self->destroyed = 1;
     }
     if (self->counter) {
-        pthread_mutex_destroy(&self->counter->lock);
+        tglog_py_mutex_destroy(&self->counter->lock);
         free(self->counter);
     }
     if (self->host) {
@@ -119,7 +136,7 @@ static int TglogClient_init(TglogClientObject *self, PyObject *args, PyObject *k
     /* Initialize callback counter */
     self->counter = (CallbackCounter *)calloc(1, sizeof(CallbackCounter));
     if (self->counter) {
-        pthread_mutex_init(&self->counter->lock, NULL);
+        tglog_py_mutex_init(&self->counter->lock);
     }
     
     /* Store configuration */
@@ -164,10 +181,10 @@ static PyObject *TglogClient_get_stats(TglogClientObject *self, PyObject *Py_UNU
     uint64_t error = 0;
     
     if (self->counter) {
-        pthread_mutex_lock(&self->counter->lock);
+        tglog_py_mutex_lock(&self->counter->lock);
         success = self->counter->success_count;
         error = self->counter->error_count;
-        pthread_mutex_unlock(&self->counter->lock);
+        tglog_py_mutex_unlock(&self->counter->lock);
     }
     
     return Py_BuildValue("{s:K, s:K}", "sent", success, "error", error);
@@ -249,13 +266,11 @@ static struct PyModuleDef tglog_ext_module = {
 PyMODINIT_FUNC PyInit_tglog_ext(void) {
     PyObject *m;
     
-    /* Check for Windows platform - not supported */
-    #ifdef _WIN32
-        PyErr_SetString(PyExc_RuntimeError, 
-            "Error: tglog is not supported on Windows platform. "
-            "Please use Linux or macOS.");
-        return NULL;
-    #endif
+    /* Initialize global mutex */
+    if (!g_lock_initialized) {
+        tglog_py_mutex_init(&g_init_lock);
+        g_lock_initialized = 1;
+    }
     
     if (PyType_Ready(&TglogClientType) < 0) {
         return NULL;

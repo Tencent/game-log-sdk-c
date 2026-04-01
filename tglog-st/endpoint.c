@@ -4,6 +4,7 @@
 #include <string.h>
 
 /* System headers */
+#include "tglog_platform.h"
 
 /* Third-party library headers */
 

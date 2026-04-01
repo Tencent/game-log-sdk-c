@@ -5,6 +5,7 @@
 
 /* System headers */
 #ifdef _WIN32
+#include "tglog_platform.h"
 #else
 
 #include <pthread.h>

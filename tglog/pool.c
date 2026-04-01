@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 /* System headers */
-#include <sys/time.h>
+#include "tglog_platform.h"
 
 /* Project headers */
 #include "pool.h"

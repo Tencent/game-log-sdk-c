@@ -41,7 +41,9 @@ LDFLAGS = -L$(EVENT_DIR)/lib \
 STATIC_LIBS = event event_pthreads
 
 # Dynamic libraries (platform-specific)
-ifeq ($(shell uname),Darwin)
+ifeq ($(OS),Windows_NT)
+    DYNAMIC_LIBS = ws2_32
+else ifeq ($(shell uname),Darwin)
     DYNAMIC_LIBS = m z dl pthread
 else
     DYNAMIC_LIBS = m z rt dl pthread
@@ -139,6 +141,8 @@ ifdef BUILD_SHARED
 endif
 	@mkdir -p ../dist/include/tglog
 	@cp -f $(HEADERS) ../dist/include/tglog/
+	@mkdir -p ../dist/include/tglog/common
+	@cp -f ../common/*.h ../dist/include/tglog/common/
 	@echo "Installation complete!"
 
 # Debug information

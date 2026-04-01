@@ -3,6 +3,8 @@ tglog/*.o
 tglog/*.d
 tglog-st/*.o
 tglog-st/*.d
+common/*.o
+common/*.d
 lib/
 !test-tapp/tsf4g/lib/
 !test-tapp/tsf4g/lib/**
@@ -69,3 +71,6 @@ server/log
 java
 !bindings/java
 REVIEW*.md
+.vs
+windows-*.md
+code-review-summary.md

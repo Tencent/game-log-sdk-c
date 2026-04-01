@@ -1,24 +1,9 @@
 # cython: language_level=3
-# distutils: language=c
-# distutils: sources = ../../tglog/client.c ../../tglog/conf.c ../../tglog/conn.c ../../tglog/worker.c ../../tglog/endpoint.c ../../tglog/discoverer.c ../../tglog/request.c ../../tglog/metrics.c ../../tglog/debug_logger.c ../../tglog/err.c ../../tglog/def.c
-# distutils: include_dirs = ../../common ../../thirdparty/event/include ../../tglog
-# distutils: libraries = event pthread
-# distutils: library_dirs = ../../lib ../../thirdparty/event/lib
-# distutils: extra_compile_args = -O3 -march=native -ffast-math
 
 """
 High-performance Cython bindings for tglog
 Designed for big data applications with minimal overhead
 """
-
-import platform
-import sys
-
-# Check platform - we only support Linux/Unix
-if platform.system() == "Windows":
-    print("Error: tglog is not supported on Windows platform.", file=sys.stderr)
-    print("Please use Linux or macOS.", file=sys.stderr)
-    sys.exit(1)
 
 from libc.stdint cimport uint32_t, uint64_t
 from libc.stdlib cimport malloc, free

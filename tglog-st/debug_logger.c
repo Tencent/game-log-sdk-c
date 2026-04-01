@@ -2,7 +2,7 @@
 #include <time.h>
 
 /* System headers */
-#include <sys/time.h>
+#include "tglog_platform.h"
 
 /* Third-party library headers */
 

@@ -4,6 +4,9 @@
 /* Standard library headers */
 #include <stdbool.h>
 
+/* System headers */
+#include "tglog_platform.h"
+
 /* Third-party library headers */
 #include "event2/event.h"
 #include "event2/bufferevent.h"

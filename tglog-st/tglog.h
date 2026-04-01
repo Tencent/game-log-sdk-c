@@ -8,7 +8,8 @@
  *   #include <tglog-st/tglog-st.h>
  *
  * Link with:
- *   -ltglog-st -levent -lck -ljemalloc -lpthread -lm
+ *   -ltglog-st -levent -ljemalloc -lpthread -lm
+ *   On Windows, also link with: -lws2_32
  */
 
 #ifndef TGLOG_H

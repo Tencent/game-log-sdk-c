@@ -2,9 +2,15 @@
 #include <signal.h>
 
 /* System headers */
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <windows.h>
+#endif
 
 /* Third-party library headers */
 #include "event2/event.h"
+#include "tglog_atomic.h"
 
 /* Project headers */
 #include "client.h"
@@ -16,6 +22,27 @@
 #include "metrics.h"
 #include "request.h"
 #include "worker.h"
+
+void tglog_init_network() {
+#ifdef _WIN32
+    static uint32_t init_state = 0; /* 0: uninitialized, 1: initializing, 2: initialized */
+
+    if (tglog_atomic_load_32(&init_state) == 2) {
+        return;
+    }
+
+    if (tglog_atomic_cas_32(&init_state, 0, 1)) {
+        WSADATA wsaData;
+        int ret = WSAStartup(MAKEWORD(2, 2), &wsaData);
+        tglog_atomic_store_32(&init_state, ret == 0 ? 2 : 0);
+        return;
+    }
+
+    while (tglog_atomic_load_32(&init_state) == 1) {
+        tglog_pause();
+    }
+#endif
+}
 
 static void tglog_client_on_endpoint_updated(const tglog_endpoint_list *all,
                                              const tglog_endpoint_list *added,
@@ -34,13 +61,17 @@ tglog_client *tglog_client_create(const tglog_conf *conf) {
         return NULL;
     }
 
+    tglog_init_network();
+
     /* Ignore SIGPIPE to prevent process crash when writing to a closed socket.
      * writev() cannot use MSG_NOSIGNAL, so we must ignore SIGPIPE globally.
      * Only set SIG_IGN if the process has not installed a custom handler. */
+#ifndef _WIN32
     struct sigaction sa;
     if (sigaction(SIGPIPE, NULL, &sa) == 0 && sa.sa_handler == SIG_DFL) {
         signal(SIGPIPE, SIG_IGN);
     }
+#endif
 
     tglog_client *client = (tglog_client *) calloc(1, sizeof(tglog_client));
     if (!client) {
