@@ -6,6 +6,10 @@ set(CMAKE_C_STANDARD 99)
 # Generate compile_commands.json for better IDE support
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+if(WIN32)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
 # 设置当前目录变量
 set(CURRENT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -23,13 +27,20 @@ set(EVENT_VERSION "release-2.1.12-stable")
 set(LIB_DIR ${CURRENT_DIR}/lib)
 
 # 编译器设置
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -D_GNU_SOURCE -D_REENTRANT -Wno-typedef-redefinition")
-
-# 构建优化选项
-if(RELEASE)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -DNDEBUG")
+if(MSVC)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /D_CRT_SECURE_NO_WARNINGS")
+    if(RELEASE)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /O2 /DNDEBUG")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /Od /Zi /DDEBUG")
+    endif()
 else()
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -DDEBUG")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -D_GNU_SOURCE -D_REENTRANT -Wno-typedef-redefinition")
+    if(RELEASE)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -DNDEBUG")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -DDEBUG")
+    endif()
 endif()
 
 # 默认构建动态库
@@ -62,14 +73,18 @@ if(NOT JEMALLOC_FILES OR NOT EVENT_FILES)
             message(FATAL_ERROR "git submodule update --init failed with ${GIT_SUBMOD_RESULT}\n${GIT_SUBMOD_ERROR}")
         endif()
     else()
-        message(STATUS "Running download-deps.sh to download dependencies...")
-        execute_process(
-            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/download-deps.sh
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-            RESULT_VARIABLE DOWNLOAD_RESULT
-        )
-        if(NOT DOWNLOAD_RESULT EQUAL "0")
-            message(FATAL_ERROR "Failed to download dependencies. Please check download-deps.sh output.")
+        if(WIN32)
+            message(FATAL_ERROR "Dependencies not found. Please run: git submodule update --init --recursive")
+        else()
+            message(STATUS "Running download-deps.sh to download dependencies...")
+            execute_process(
+                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/download-deps.sh
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                RESULT_VARIABLE DOWNLOAD_RESULT
+            )
+            if(NOT DOWNLOAD_RESULT EQUAL "0")
+                message(FATAL_ERROR "Failed to download dependencies. Please check download-deps.sh output.")
+            endif()
         endif()
     endif()
 else()
@@ -123,7 +138,25 @@ else()
     message(STATUS "Using downloaded dependencies (version check skipped)")
 endif()
 
-# 使用 ExternalProject 来构建依赖项
+# 使用 ExternalProject 或 add_subdirectory 来构建依赖项
+if(WIN32)
+    add_custom_target(jemalloc_build)
+    add_library(jemalloc INTERFACE)
+    
+    set(EVENT__DISABLE_TESTS ON CACHE BOOL "Disable tests" FORCE)
+    set(EVENT__DISABLE_BENCHMARKS ON CACHE BOOL "Disable benchmarks" FORCE)
+    set(EVENT__DISABLE_SAMPLES ON CACHE BOOL "Disable samples" FORCE)
+    set(EVENT__DISABLE_OPENSSL ON CACHE BOOL "Disable openssl" FORCE)
+    
+    add_subdirectory(${EVENT_SRC_DIR} event_build)
+    add_custom_target(libevent_build)
+    
+    add_library(event INTERFACE)
+    target_link_libraries(event INTERFACE event_core_static)
+    add_dependencies(event libevent_build)
+    
+    add_library(event_pthreads INTERFACE)
+else()
 include(ExternalProject)
 
 # 构建 jemalloc
@@ -185,6 +218,7 @@ target_include_directories(event_pthreads INTERFACE
     $<BUILD_INTERFACE:${EVENT_INSTALL_DIR}/include>
 )
 add_dependencies(event_pthreads libevent_build)
+endif()
 
 # 添加 event 源文件索引，让 CLion 能够识别和跳转
 file(GLOB_RECURSE EVENT_SOURCES
@@ -210,9 +244,11 @@ file(MAKE_DIRECTORY ${JEMALLOC_INSTALL_DIR}/include)
 # 添加子目录
 add_subdirectory(tglog)
 add_subdirectory(tglog-st)
-add_subdirectory(test)
-add_subdirectory(test-st)
-add_subdirectory(test-tapp)
+if(NOT WIN32)
+    add_subdirectory(test)
+    add_subdirectory(test-st)
+    add_subdirectory(test-tapp)
+endif()
 
 # 添加bindings目录（如果存在）
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/bindings/CMakeLists.txt)
@@ -256,10 +292,14 @@ add_custom_target(all_deps ALL
 add_custom_target(clean-deps
     COMMAND ${CMAKE_COMMAND} -E remove_directory ${JEMALLOC_INSTALL_DIR}
     COMMAND ${CMAKE_COMMAND} -E remove_directory ${EVENT_INSTALL_DIR}
-    COMMAND cd ${JEMALLOC_SRC_DIR} && make clean
-    COMMAND cd ${EVENT_SRC_DIR} && make clean
     COMMENT "Cleaning dependencies..."
 )
+if(NOT WIN32)
+    add_custom_command(TARGET clean-deps POST_BUILD
+        COMMAND cd ${JEMALLOC_SRC_DIR} && make clean || true
+        COMMAND cd ${EVENT_SRC_DIR} && make clean || true
+    )
+endif()
 
 # 卸载目标
 add_custom_target(uninstall
@@ -268,24 +308,37 @@ add_custom_target(uninstall
 )
 
 # 检查依赖项
-add_custom_target(check-deps
-    COMMAND ${CMAKE_COMMAND} -E echo "Checking dependencies..."
-    COMMAND ${CMAKE_COMMAND} -E echo -n "  jemalloc: " 
-    COMMAND test -f ${JEMALLOC_LIB} && echo "✓ built" || echo "✗ missing"
-    COMMAND ${CMAKE_COMMAND} -E echo -n "  libevent: "
-    COMMAND test -f ${EVENT_LIB} && echo "✓ built" || echo "✗ missing"
-    COMMAND ${CMAKE_COMMAND} -E echo -n "  tglog static lib: "
-    COMMAND test -f ${LIB_DIR}/libtglog.a && echo "✓ built" || echo "✗ missing"
-    COMMAND ${CMAKE_COMMAND} -E echo -n "  tglog shared lib: "
-    COMMAND test -f ${LIB_DIR}/libtglog.so && echo "✓ built" || echo "✗ missing"
-    COMMAND ${CMAKE_COMMAND} -E echo -n "  tglog-st static lib: "
-    COMMAND test -f ${LIB_DIR}/libtglog-st.a && echo "✓ built" || echo "✗ missing"
-    COMMAND ${CMAKE_COMMAND} -E echo -n "  tglog-st shared lib: "
-    COMMAND test -f ${LIB_DIR}/libtglog-st.so && echo "✓ built" || echo "✗ missing"
-    COMMAND ${CMAKE_COMMAND} -E echo -n "  Python bindings: "
-    COMMAND test -f ${CMAKE_CURRENT_SOURCE_DIR}/bindings/python/tglog_client.py && echo "✓ ready" || echo "✗ missing"
-    COMMENT "Checking dependencies status..."
-)
+if(WIN32)
+    add_custom_target(check-deps
+        COMMAND ${CMAKE_COMMAND} -E echo "Checking dependencies..."
+        COMMAND ${CMAKE_COMMAND} -E echo -n "  tglog static lib: "
+        COMMAND if exist ${LIB_DIR}/tglog.lib (echo ✓ built) else (echo ✗ missing)
+        COMMAND ${CMAKE_COMMAND} -E echo -n "  tglog shared lib: "
+        COMMAND if exist ${LIB_DIR}/tglog.dll (echo ✓ built) else (echo ✗ missing)
+        COMMAND ${CMAKE_COMMAND} -E echo -n "  Python bindings: "
+        COMMAND if exist ${CMAKE_CURRENT_SOURCE_DIR}/bindings/python/tglog_client.py (echo ✓ ready) else (echo ✗ missing)
+        COMMENT "Checking dependencies status..."
+    )
+else()
+    add_custom_target(check-deps
+        COMMAND ${CMAKE_COMMAND} -E echo "Checking dependencies..."
+        COMMAND ${CMAKE_COMMAND} -E echo -n "  jemalloc: " 
+        COMMAND test -f ${JEMALLOC_LIB} && echo "✓ built" || echo "✗ missing"
+        COMMAND ${CMAKE_COMMAND} -E echo -n "  libevent: "
+        COMMAND test -f ${EVENT_LIB} && echo "✓ built" || echo "✗ missing"
+        COMMAND ${CMAKE_COMMAND} -E echo -n "  tglog static lib: "
+        COMMAND test -f ${LIB_DIR}/libtglog.a && echo "✓ built" || echo "✗ missing"
+        COMMAND ${CMAKE_COMMAND} -E echo -n "  tglog shared lib: "
+        COMMAND test -f ${LIB_DIR}/libtglog.so && echo "✓ built" || echo "✗ missing"
+        COMMAND ${CMAKE_COMMAND} -E echo -n "  tglog-st static lib: "
+        COMMAND test -f ${LIB_DIR}/libtglog-st.a && echo "✓ built" || echo "✗ missing"
+        COMMAND ${CMAKE_COMMAND} -E echo -n "  tglog-st shared lib: "
+        COMMAND test -f ${LIB_DIR}/libtglog-st.so && echo "✓ built" || echo "✗ missing"
+        COMMAND ${CMAKE_COMMAND} -E echo -n "  Python bindings: "
+        COMMAND test -f ${CMAKE_CURRENT_SOURCE_DIR}/bindings/python/tglog_client.py && echo "✓ ready" || echo "✗ missing"
+        COMMENT "Checking dependencies status..."
+    )
+endif()
 
 # 帮助目标
 add_custom_target(help_info
@@ -421,6 +474,7 @@ if(EXISTS ${EVENT_INSTALL_DIR})
 endif()
 
 # 创建pkg-config文件
+if(NOT WIN32)
 # TGLog (multi-threaded version)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/tglog.pc"
 "prefix=${CMAKE_CURRENT_SOURCE_DIR}/dist
@@ -454,6 +508,7 @@ Cflags: -I\${includedir}/tglog-st -I\${prefix}/thirdparty/event/include
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/tglog-st.pc
     DESTINATION dist/lib/pkgconfig
 )
+endif()
 
 # 创建README文件
 install(CODE "

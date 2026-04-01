@@ -5,7 +5,9 @@ set(CMAKE_C_STANDARD 99)
 
 # 设置编译器标志
 # 注意：优化级别 (-O2/-O0) 和调试符号 (-g) 由根目录的 CMAKE_C_FLAGS 控制
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -fPIC -std=c99 -D_GNU_SOURCE")
+if(NOT MSVC)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -fPIC -std=c99 -D_GNU_SOURCE")
+endif()
 
 # 包含目录 - 使用变量存储，但不使用全局include_directories
 set(TGLOG_ST_INCLUDE_DIRS
@@ -65,6 +67,11 @@ target_include_directories(tglog-st_static PUBLIC
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/include>
         $<INSTALL_INTERFACE:include/tglog-st>
 )
+if(WIN32)
+    target_include_directories(tglog-st_static PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/event/include>
+    )
+endif()
 
 # 创建动态库
 add_library(tglog-st_shared SHARED ${SOURCES})
@@ -79,6 +86,11 @@ target_include_directories(tglog-st_shared PUBLIC
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/include>
         $<INSTALL_INTERFACE:include/tglog-st>
 )
+if(WIN32)
+    target_include_directories(tglog-st_shared PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/event/include>
+    )
+endif()
 
 # 链接依赖库
 target_link_directories(tglog-st_static PRIVATE
@@ -97,6 +109,12 @@ if (APPLE)
     target_link_libraries(tglog-st_shared PRIVATE
             event
             pthread m
+    )
+elseif (WIN32)
+    target_link_libraries(tglog-st_shared PRIVATE
+            event_core_static
+            ws2_32
+            iphlpapi
     )
 else ()
     # Linux 系统，使用 -Wl,-Bstatic 和 -Wl,-Bdynamic
@@ -124,10 +142,17 @@ add_dependencies(tglog-st_shared jemalloc_build libevent_build event)
 install(TARGETS tglog-st_static tglog-st_shared
         ARCHIVE DESTINATION dist/lib
         LIBRARY DESTINATION dist/lib
+        RUNTIME DESTINATION dist/bin
 )
 
 install(FILES ${HEADERS}
         DESTINATION dist/include/tglog-st
+)
+
+# 安装 common 头文件
+file(GLOB TGLOG_ST_COMMON_HEADERS "${CMAKE_SOURCE_DIR}/common/*.h")
+install(FILES ${TGLOG_ST_COMMON_HEADERS}
+        DESTINATION dist/include/tglog-st/common
 )
 
 # 创建接口库用于IDE支持

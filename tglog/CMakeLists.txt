@@ -12,12 +12,18 @@ list(APPEND SRCS "${CMAKE_SOURCE_DIR}/common/tglog_ht.c")
 add_library(tglog_objs OBJECT ${SRCS})
 
 # 设置编译选项
-target_compile_options(tglog_objs PRIVATE
-        -Wall -Werror -std=c99
-        -D_GNU_SOURCE -D_REENTRANT
-        -Wno-typedef-redefinition
-        -fPIC -m64 -pipe -mcx16
-)
+if(MSVC)
+    target_compile_options(tglog_objs PRIVATE
+            /W3
+    )
+else()
+    target_compile_options(tglog_objs PRIVATE
+            -Wall -Werror -std=c99
+            -D_GNU_SOURCE -D_REENTRANT
+            -Wno-typedef-redefinition
+            -fPIC -m64 -pipe -mcx16
+    )
+endif()
 
 # 优化选项由根目录的 CMAKE_C_FLAGS 控制
 # 如果需要覆盖，可以在这里添加特定的优化选项
@@ -28,6 +34,11 @@ target_include_directories(tglog_objs PRIVATE
         ${CMAKE_SOURCE_DIR}/common
         ${CMAKE_SOURCE_DIR}/thirdparty/event/include
 )
+if(WIN32)
+    target_include_directories(tglog_objs PRIVATE
+            ${CMAKE_BINARY_DIR}/event/include
+    )
+endif()
 
 # 确保依赖项已经构建
 add_dependencies(tglog_objs jemalloc_build libevent_build event)
@@ -62,6 +73,12 @@ if (BUILD_SHARED)
                 event event_pthreads
                 m z dl pthread
         )
+    elseif (WIN32)
+        target_link_libraries(tglog_shared PRIVATE
+                event_core_static
+                ws2_32
+                iphlpapi
+        )
     else ()
         # Linux 系统，使用 -Wl,-Bstatic 和 -Wl,-Bdynamic
         # Note: jemalloc is NOT linked here - it should be linked by the final executable
@@ -90,14 +107,26 @@ if (BUILD_SHARED)
 endif ()
 
 # 安装规则
-install(FILES ${CMAKE_SOURCE_DIR}/lib/libtglog.a DESTINATION dist/lib)
+install(TARGETS tglog_static
+        ARCHIVE DESTINATION dist/lib
+        LIBRARY DESTINATION dist/lib
+        RUNTIME DESTINATION dist/bin
+)
 if (BUILD_SHARED)
-    install(FILES ${CMAKE_SOURCE_DIR}/lib/libtglog.so DESTINATION dist/lib)
+    install(TARGETS tglog_shared
+            ARCHIVE DESTINATION dist/lib
+            LIBRARY DESTINATION dist/lib
+            RUNTIME DESTINATION dist/bin
+    )
 endif ()
 
 # 安装头文件
 file(GLOB TGLOG_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
 install(FILES ${TGLOG_HEADERS} DESTINATION dist/include/tglog)
+
+# 安装 common 头文件
+file(GLOB TGLOG_COMMON_HEADERS "${CMAKE_SOURCE_DIR}/common/*.h")
+install(FILES ${TGLOG_COMMON_HEADERS} DESTINATION dist/include/tglog/common)
 
 # 信息目标
 add_custom_target(tglog_info

@@ -9,20 +9,41 @@ import os
 import sys
 import json
 import threading
-import platform
 from ctypes import POINTER, c_char_p, c_int, c_void_p, c_bool, Structure, CFUNCTYPE, c_uint32
 
-# Check platform - we only support Linux/Unix
-if platform.system() == "Windows":
-    print("Error: tglog is not supported on Windows platform.", file=sys.stderr)
-    print("Please use Linux or macOS.", file=sys.stderr)
-    sys.exit(1)
+
+def _get_lib_name():
+    if sys.platform == "win32":
+        return "tglog.dll"
+    elif sys.platform == "darwin":
+        return "libtglog.dylib"
+    else:
+        return "libtglog.so"
+
 
 # Load the tglog library
+_lib_name = _get_lib_name()
+
+if sys.platform == "win32":
+    _lib_dirs = [
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../lib")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../../lib")),
+        os.path.abspath(os.path.dirname(__file__))
+    ]
+    for _d in _lib_dirs:
+        if os.path.exists(_d):
+            if hasattr(os, "add_dll_directory"):
+                try:
+                    os.add_dll_directory(_d)
+                except Exception:
+                    pass
+            os.environ["PATH"] = _d + os.pathsep + os.environ.get("PATH", "")
+
 lib_paths = [
-    "../lib/libtglog.so",
-    "./libtglog.so",
-    os.path.join(os.path.dirname(__file__), "../lib/libtglog.so"),
+    "../lib/" + _lib_name,
+    "./" + _lib_name,
+    os.path.join(os.path.dirname(__file__), "../lib/" + _lib_name),
+    os.path.join(os.path.dirname(__file__), "../../lib/" + _lib_name),
 ]
 
 tglog_lib = None
@@ -36,9 +57,9 @@ for path in lib_paths:
 
 if not tglog_lib:
     try:
-        tglog_lib = ctypes.CDLL("libtglog.so")
+        tglog_lib = ctypes.CDLL(_lib_name)
     except OSError as e:
-        raise ImportError(f"Could not load libtglog.so: {e}")
+        raise ImportError(f"Could not load {_lib_name}: {e}")
 
 # Constants
 TGLOG_NETWORK_UDP = 0
