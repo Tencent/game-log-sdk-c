@@ -98,8 +98,13 @@ Dependencies are automatically initialized via `make init-submodules` or downloa
 - No atomic operations needed (single-threaded)
 
 **Critical API Difference:**
-- Multi-threaded: `tglog_client_send()` returns immediately, workers handle async
+- Multi-threaded: `tglog_client_send()` returns immediately, workers handle async; call `tglog_use_thread()` once at process startup
 - Single-threaded: Must call `tglog_client_update()` periodically in main loop to process I/O
+
+**`tglog_send()` Message Flag (memory ownership):**
+- `TGLOG_MSG_F_NONE`: Caller owns payload; client does not copy or free it
+- `TGLOG_MSG_F_FREE`: Client calls `free()` on payload after use
+- `TGLOG_MSG_F_COPY`: Client copies the payload internally (safest, slight overhead)
 
 **File Correspondence:**
 The single-threaded version mirrors the multi-threaded structure with identical file names but simplified implementations (no threading, no atomic ops).

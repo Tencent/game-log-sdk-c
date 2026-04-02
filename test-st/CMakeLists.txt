@@ -7,22 +7,30 @@ file(GLOB TEST_SOURCES "*.c")
 set(LIBDIRS
         ${CMAKE_SOURCE_DIR}/lib
         ${CMAKE_SOURCE_DIR}/thirdparty/event/lib
-        ${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/lib
 )
+if(NOT WIN32)
+    list(APPEND LIBDIRS ${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/lib)
+endif()
+if(WIN32)
+    list(APPEND LIBDIRS ${CMAKE_SOURCE_DIR}/lib/Release)
+endif()
 
 # 设置包含目录
 set(INCLUDES
         .
         ${CMAKE_SOURCE_DIR}/tglog-st
+        ${CMAKE_SOURCE_DIR}/common
         ${CMAKE_SOURCE_DIR}/thirdparty/event/include
 )
 
 # 设置编译选项
-if (APPLE)
+if(MSVC)
+    set(TEST_CFLAGS /W3 /D_CRT_SECURE_NO_WARNINGS)
+elseif(APPLE)
     set(TEST_CFLAGS -Wall -Werror -Wno-typedef-redefinition -O0 -g -std=c99 -D_GNU_SOURCE)
-else ()
+else()
     set(TEST_CFLAGS -Wall -Werror -O0 -g -std=c99 -D_GNU_SOURCE -D_REENTRANT)
-endif ()
+endif()
 
 # 为每个 .c 文件创建一个可执行文件
 foreach (test_source ${TEST_SOURCES})
@@ -44,13 +52,20 @@ foreach (test_source ${TEST_SOURCES})
     # 设置链接目录
     target_link_directories(${test_exe_name} PRIVATE ${LIBDIRS})
 
-    # 所有平台都使用静态链接
-    if (APPLE)
+    if(MSVC)
+        # Windows/MSVC 链接：与 Linux 统一使用 event + event_pthreads
+        target_link_libraries(${test_exe_name} PRIVATE
+                tglog-st_static
+                event event_pthreads
+        )
+        add_dependencies(${test_exe_name} tglog-st_static libevent_build)
+    elseif(APPLE)
         target_link_libraries(${test_exe_name} PRIVATE
                 tglog-st_static event jemalloc
                 m z pthread
         )
-    else ()
+        add_dependencies(${test_exe_name} tglog-st_static jemalloc event)
+    else()
         # Linux 系统
         target_link_options(${test_exe_name} PRIVATE -Wl,-dn)
         target_link_libraries(${test_exe_name} PRIVATE
@@ -60,10 +75,8 @@ foreach (test_source ${TEST_SOURCES})
         target_link_libraries(${test_exe_name} PRIVATE
                 m z rt dl pthread
         )
-    endif ()
-
-    # 确保依赖项已经构建
-    add_dependencies(${test_exe_name} tglog-st_static jemalloc event)
+        add_dependencies(${test_exe_name} tglog-st_static jemalloc event)
+    endif()
 
     # 设置输出目录为当前目录
     set_target_properties(${test_exe_name} PROPERTIES
@@ -72,7 +85,11 @@ foreach (test_source ${TEST_SOURCES})
 endforeach ()
 
 # 创建一个总的测试目标
-add_custom_target(test_st_programs ALL)
+if(WIN32)
+    add_custom_target(test_st_programs)
+else()
+    add_custom_target(test_st_programs ALL)
+endif()
 
 # 为所有测试程序添加依赖
 foreach (test_source ${TEST_SOURCES})

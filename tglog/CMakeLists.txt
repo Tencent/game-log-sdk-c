@@ -34,11 +34,6 @@ target_include_directories(tglog_objs PRIVATE
         ${CMAKE_SOURCE_DIR}/common
         ${CMAKE_SOURCE_DIR}/thirdparty/event/include
 )
-if(WIN32)
-    target_include_directories(tglog_objs PRIVATE
-            ${CMAKE_BINARY_DIR}/event/include
-    )
-endif()
 
 # 确保依赖项已经构建
 add_dependencies(tglog_objs jemalloc_build libevent_build event)
@@ -48,6 +43,7 @@ add_library(tglog_static STATIC $<TARGET_OBJECTS:tglog_objs>)
 set_target_properties(tglog_static PROPERTIES
         OUTPUT_NAME "tglog"
         ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
+        PDB_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
 )
 
 # 为静态库设置依赖
@@ -58,14 +54,27 @@ if (BUILD_SHARED)
     add_library(tglog_shared SHARED $<TARGET_OBJECTS:tglog_objs>)
     set_target_properties(tglog_shared PROPERTIES
             OUTPUT_NAME "tglog"
+            ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
             LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
+            PDB_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
     )
+    if(WIN32)
+        set_target_properties(tglog_shared PROPERTIES
+                ARCHIVE_OUTPUT_NAME "tglog-import"
+                LINK_FLAGS "/DEBUG"
+        )
+    endif()
 
     # 链接动态库需要的库
     target_link_directories(tglog_shared PRIVATE
             ${CMAKE_SOURCE_DIR}/thirdparty/event/lib
-            ${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/lib
     )
+    if(NOT WIN32)
+        target_link_directories(tglog_shared PRIVATE
+                ${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/lib
+        )
+    endif()
 
     # 根据系统平台设置链接选项
     if (APPLE)
@@ -75,9 +84,7 @@ if (BUILD_SHARED)
         )
     elseif (WIN32)
         target_link_libraries(tglog_shared PRIVATE
-                event_core_static
-                ws2_32
-                iphlpapi
+                event event_pthreads
         )
     else ()
         # Linux 系统，使用 -Wl,-Bstatic 和 -Wl,-Bdynamic
@@ -110,14 +117,23 @@ endif ()
 install(TARGETS tglog_static
         ARCHIVE DESTINATION dist/lib
         LIBRARY DESTINATION dist/lib
-        RUNTIME DESTINATION dist/bin
+        RUNTIME DESTINATION dist/lib
 )
 if (BUILD_SHARED)
     install(TARGETS tglog_shared
             ARCHIVE DESTINATION dist/lib
             LIBRARY DESTINATION dist/lib
-            RUNTIME DESTINATION dist/bin
+            RUNTIME DESTINATION dist/lib
     )
+    if(WIN32)
+        # 安装 PDB 和 EXP 文件到 dist/lib
+        install(FILES
+                $<TARGET_PDB_FILE:tglog_shared>
+                "$<TARGET_LINKER_FILE_DIR:tglog_shared>/tglog-import.exp"
+                DESTINATION dist/lib
+                OPTIONAL
+        )
+    endif()
 endif ()
 
 # 安装头文件

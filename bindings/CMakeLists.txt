@@ -7,7 +7,7 @@ else()
     if(WIN32)
         # 如果没有 CMakeLists.txt，使用自定义命令
         add_custom_target(python_bindings
-            COMMAND python setup_ext.py build_ext --inplace
+            COMMAND python setup_ext.py build_ext --inplace --plat-name win-amd64
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/python
             COMMENT "Building Python bindings..."
             DEPENDS tglog_static tglog_shared
@@ -23,8 +23,12 @@ else()
     endif()
 endif()
 
-# 创建总的 bindings 目标（设置为 ALL，默认构建）
-add_custom_target(bindings ALL)
+# 创建总的 bindings 目标（Windows 下不加入 ALL，避免 Python 环境问题）
+if(WIN32)
+    add_custom_target(bindings)
+else()
+    add_custom_target(bindings ALL)
+endif()
 add_dependencies(bindings python_bindings tglog_static tglog_shared)
 
 # Help target

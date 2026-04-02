@@ -28,7 +28,7 @@ set(LIB_DIR ${CURRENT_DIR}/lib)
 
 # 编译器设置
 if(MSVC)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /D_CRT_SECURE_NO_WARNINGS")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /D_CRT_SECURE_NO_WARNINGS /utf-8")
     if(RELEASE)
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /O2 /DNDEBUG")
     else()
@@ -138,86 +138,135 @@ else()
     message(STATUS "Using downloaded dependencies (version check skipped)")
 endif()
 
+# 卸载目标 - 必须在 add_subdirectory(event) 之前定义，否则 libevent 会抢先注册同名目标
+add_custom_target(uninstall
+    COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_CURRENT_SOURCE_DIR}/dist
+    COMMENT "Uninstalling..."
+)
+
 # 使用 ExternalProject 或 add_subdirectory 来构建依赖项
 if(WIN32)
+    # Windows 上不编译 jemalloc，保留空目标供子目录的 add_dependencies 引用
     add_custom_target(jemalloc_build)
-    add_library(jemalloc INTERFACE)
-    
+
     set(EVENT__DISABLE_TESTS ON CACHE BOOL "Disable tests" FORCE)
     set(EVENT__DISABLE_BENCHMARKS ON CACHE BOOL "Disable benchmarks" FORCE)
     set(EVENT__DISABLE_SAMPLES ON CACHE BOOL "Disable samples" FORCE)
     set(EVENT__DISABLE_OPENSSL ON CACHE BOOL "Disable openssl" FORCE)
-    
-    add_subdirectory(${EVENT_SRC_DIR} event_build)
+    set(EVENT__LIBRARY_TYPE STATIC CACHE STRING "Build static libevent" FORCE)
+
+    # 禁止 libevent 的 install() 规则污染本项目的安装目录
+    # （libevent 默认会把头文件装到 CMAKE_INSTALL_PREFIX/include）
+    # EXCLUDE_FROM_ALL: 不把 libevent 的 install 规则写入父目录的 cmake_install.cmake，
+    # 但依赖关系（event_static 等）仍然正常工作
+    add_subdirectory(${EVENT_SRC_DIR} event_build EXCLUDE_FROM_ALL)
+    set(CMAKE_SKIP_INSTALL_RULES FALSE)
+
+    # 构建后将 libevent 安装到 thirdparty/event（与 Linux 一致），
+    # 这样 cmake --install 只需从 thirdparty/ 拷贝，Windows/Linux 逻辑统一
+    add_custom_target(libevent_install_thirdparty
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVENT_INSTALL_DIR}/lib
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVENT_INSTALL_DIR}/include
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_BINARY_DIR}/event_build/lib/$<CONFIG>/event.lib
+                ${EVENT_INSTALL_DIR}/lib/event.lib
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_BINARY_DIR}/event_build/lib/$<CONFIG>/event_core.lib
+                ${EVENT_INSTALL_DIR}/lib/event_core.lib
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_BINARY_DIR}/event_build/lib/$<CONFIG>/event_extra.lib
+                ${EVENT_INSTALL_DIR}/lib/event_extra.lib
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${EVENT_SRC_DIR}/include
+                ${EVENT_INSTALL_DIR}/include
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_BINARY_DIR}/event_build/include
+                ${EVENT_INSTALL_DIR}/include
+        DEPENDS event_core_static event_extra_static event_static
+        COMMENT "Installing libevent to thirdparty/event..."
+    )
+
     add_custom_target(libevent_build)
-    
-    add_library(event INTERFACE)
-    target_link_libraries(event INTERFACE event_core_static)
+    add_dependencies(libevent_build libevent_install_thirdparty)
+
+    # 与 Linux 完全一致：
+    # - event 目标指向已安装的 thirdparty/event/lib/event.lib（覆盖 libevent add_subdirectory
+    #   中定义的 event INTERFACE，使其指向安装路径而非 in-build 的 event_static）
+    # - event_pthreads 在 Linux 上是 libevent_pthreads.a；Windows 上用 INTERFACE 携带等价系统库
+    set_property(TARGET event PROPERTY INTERFACE_LINK_LIBRARIES
+        ${EVENT_INSTALL_DIR}/lib/event.lib
+    )
+    target_include_directories(event INTERFACE
+        ${EVENT_SRC_DIR}/include
+        ${EVENT_INSTALL_DIR}/include
+    )
     add_dependencies(event libevent_build)
-    
+
     add_library(event_pthreads INTERFACE)
+    target_link_libraries(event_pthreads INTERFACE ws2_32 iphlpapi)
+    add_dependencies(event_pthreads libevent_build)
 else()
-include(ExternalProject)
+    include(ExternalProject)
 
-# 构建 jemalloc
-if(NOT EXISTS ${JEMALLOC_LIB})
-    ExternalProject_Add(
-        jemalloc_build
-        SOURCE_DIR ${JEMALLOC_SRC_DIR}
-        CONFIGURE_COMMAND cd ${JEMALLOC_SRC_DIR} && ./autogen.sh && CFLAGS=-fPIC CXXFLAGS=-fPIC ./configure --prefix=${JEMALLOC_INSTALL_DIR} --with-pic --enable-static
-        BUILD_COMMAND cd ${JEMALLOC_SRC_DIR} && ${CMAKE_MAKE_PROGRAM}
-        INSTALL_COMMAND cd ${JEMALLOC_SRC_DIR} && ${CMAKE_MAKE_PROGRAM} install
-        BUILD_IN_SOURCE 1
-        BUILD_ALWAYS 0
+    # 构建 jemalloc
+    if(NOT EXISTS ${JEMALLOC_LIB})
+        ExternalProject_Add(
+            jemalloc_build
+            SOURCE_DIR ${JEMALLOC_SRC_DIR}
+            CONFIGURE_COMMAND cd ${JEMALLOC_SRC_DIR} && ./autogen.sh && CFLAGS=-fPIC CXXFLAGS=-fPIC ./configure --prefix=${JEMALLOC_INSTALL_DIR} --with-pic --enable-static
+            BUILD_COMMAND cd ${JEMALLOC_SRC_DIR} && ${CMAKE_MAKE_PROGRAM}
+            INSTALL_COMMAND cd ${JEMALLOC_SRC_DIR} && ${CMAKE_MAKE_PROGRAM} install
+            BUILD_IN_SOURCE 1
+            BUILD_ALWAYS 0
+        )
+    else()
+        # 如果库已存在，创建一个空目标
+        add_custom_target(jemalloc_build)
+    endif()
+
+    # 构建 libevent
+    if(NOT EXISTS ${EVENT_LIB})
+        ExternalProject_Add(
+            libevent_build
+            SOURCE_DIR ${EVENT_SRC_DIR}
+            CONFIGURE_COMMAND cd ${EVENT_SRC_DIR} && ./autogen.sh && ./configure --prefix=${EVENT_INSTALL_DIR} --with-pic --disable-shared --enable-static --disable-openssl
+            BUILD_COMMAND cd ${EVENT_SRC_DIR} && ${CMAKE_MAKE_PROGRAM}
+            INSTALL_COMMAND cd ${EVENT_SRC_DIR} && ${CMAKE_MAKE_PROGRAM} install
+            BUILD_IN_SOURCE 1
+            BUILD_ALWAYS 0
+        )
+    else()
+        # 如果库已存在，创建一个空目标
+        add_custom_target(libevent_build)
+    endif()
+
+    # 导入构建的库作为 IMPORTED 目标
+    add_library(jemalloc STATIC IMPORTED)
+    set_target_properties(jemalloc PROPERTIES IMPORTED_LOCATION ${JEMALLOC_LIB})
+    add_dependencies(jemalloc jemalloc_build)
+
+    add_library(event STATIC IMPORTED)
+    set_target_properties(event PROPERTIES
+        IMPORTED_LOCATION ${EVENT_LIB}
     )
-else()
-    # 如果库已存在，创建一个空目标
-    add_custom_target(jemalloc_build)
-endif()
-
-# 构建 libevent
-if(NOT EXISTS ${EVENT_LIB})
-    ExternalProject_Add(
-        libevent_build
-        SOURCE_DIR ${EVENT_SRC_DIR}
-        CONFIGURE_COMMAND cd ${EVENT_SRC_DIR} && ./autogen.sh && ./configure --prefix=${EVENT_INSTALL_DIR} --with-pic --disable-shared --enable-static --disable-openssl
-        BUILD_COMMAND cd ${EVENT_SRC_DIR} && ${CMAKE_MAKE_PROGRAM}
-        INSTALL_COMMAND cd ${EVENT_SRC_DIR} && ${CMAKE_MAKE_PROGRAM} install
-        BUILD_IN_SOURCE 1
-        BUILD_ALWAYS 0
+    # 使用生成器表达式，只在构建时添加 include 目录，避免配置时检查路径
+    target_include_directories(event INTERFACE
+        $<BUILD_INTERFACE:${EVENT_SRC_DIR}>
+        $<BUILD_INTERFACE:${EVENT_SRC_DIR}/include>
+        $<BUILD_INTERFACE:${EVENT_INSTALL_DIR}/include>
     )
-else()
-    # 如果库已存在，创建一个空目标
-    add_custom_target(libevent_build)
-endif()
+    add_dependencies(event libevent_build)
 
-# 导入构建的库作为 IMPORTED 目标
-add_library(jemalloc STATIC IMPORTED)
-set_target_properties(jemalloc PROPERTIES IMPORTED_LOCATION ${JEMALLOC_LIB})
-add_dependencies(jemalloc jemalloc_build)
-
-add_library(event STATIC IMPORTED)
-set_target_properties(event PROPERTIES
-    IMPORTED_LOCATION ${EVENT_LIB}
-)
-# 使用生成器表达式，只在构建时添加 include 目录，避免配置时检查路径
-target_include_directories(event INTERFACE
-    $<BUILD_INTERFACE:${EVENT_SRC_DIR}>
-    $<BUILD_INTERFACE:${EVENT_SRC_DIR}/include>
-    $<BUILD_INTERFACE:${EVENT_INSTALL_DIR}/include>
-)
-add_dependencies(event libevent_build)
-
-add_library(event_pthreads STATIC IMPORTED)
-set_target_properties(event_pthreads PROPERTIES
-    IMPORTED_LOCATION ${EVENT_INSTALL_DIR}/lib/libevent_pthreads.a
-)
-target_include_directories(event_pthreads INTERFACE
-    $<BUILD_INTERFACE:${EVENT_SRC_DIR}>
-    $<BUILD_INTERFACE:${EVENT_SRC_DIR}/include>
-    $<BUILD_INTERFACE:${EVENT_INSTALL_DIR}/include>
-)
-add_dependencies(event_pthreads libevent_build)
+    add_library(event_pthreads STATIC IMPORTED)
+    set_target_properties(event_pthreads PROPERTIES
+        IMPORTED_LOCATION ${EVENT_INSTALL_DIR}/lib/libevent_pthreads.a
+    )
+    target_include_directories(event_pthreads INTERFACE
+        $<BUILD_INTERFACE:${EVENT_SRC_DIR}>
+        $<BUILD_INTERFACE:${EVENT_SRC_DIR}/include>
+        $<BUILD_INTERFACE:${EVENT_INSTALL_DIR}/include>
+    )
+    add_dependencies(event_pthreads libevent_build)
 endif()
 
 # 添加 event 源文件索引，让 CLion 能够识别和跳转
@@ -244,9 +293,9 @@ file(MAKE_DIRECTORY ${JEMALLOC_INSTALL_DIR}/include)
 # 添加子目录
 add_subdirectory(tglog)
 add_subdirectory(tglog-st)
+add_subdirectory(test)
+add_subdirectory(test-st)
 if(NOT WIN32)
-    add_subdirectory(test)
-    add_subdirectory(test-st)
     add_subdirectory(test-tapp)
 endif()
 
@@ -300,12 +349,6 @@ if(NOT WIN32)
         COMMAND cd ${EVENT_SRC_DIR} && make clean || true
     )
 endif()
-
-# 卸载目标
-add_custom_target(uninstall
-    COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_CURRENT_SOURCE_DIR}/dist
-    COMMENT "Uninstalling..."
-)
 
 # 检查依赖项
 if(WIN32)
@@ -392,36 +435,48 @@ set(CMAKE_INSTALL_PREFIX ${CMAKE_CURRENT_SOURCE_DIR})
 # 注意：库和头文件的安装由子目录的 CMakeLists.txt 处理
 # 这里只处理测试程序、bindings 和第三方库的安装
 
-# 安装测试程序（多线程版本）
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/
-    DESTINATION dist/bin
-    USE_SOURCE_PERMISSIONS
-    FILES_MATCHING
-    PATTERN "*_test"
-    PATTERN "comprehensive_test"
-    PATTERN "*.c" EXCLUDE
-    PATTERN "*.o" EXCLUDE
-    PATTERN "*.d" EXCLUDE
-    PATTERN "CMakeFiles" EXCLUDE
-    PATTERN "Makefile" EXCLUDE
-    PATTERN "cmake_install.cmake" EXCLUDE
-    PATTERN "CMakeLists.txt" EXCLUDE
-)
-
-# 安装测试程序（单线程版本）
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test-st/
-    DESTINATION dist/bin
-    USE_SOURCE_PERMISSIONS
-    FILES_MATCHING
-    PATTERN "*_st"
-    PATTERN "*.c" EXCLUDE
-    PATTERN "*.o" EXCLUDE
-    PATTERN "*.d" EXCLUDE
-    PATTERN "CMakeFiles" EXCLUDE
-    PATTERN "Makefile" EXCLUDE
-    PATTERN "cmake_install.cmake" EXCLUDE
-    PATTERN "CMakeLists.txt" EXCLUDE
-)
+# 安装测试程序
+if(WIN32)
+    # MSVC 输出到 Release/ 子目录，用 file(GLOB) 在安装时展开，直接装到 dist/bin/
+    install(CODE "
+        file(GLOB TEST_EXES
+            \"${CMAKE_CURRENT_SOURCE_DIR}/test/Release/*.exe\"
+            \"${CMAKE_CURRENT_SOURCE_DIR}/test-st/Release/*.exe\"
+        )
+        foreach(exe \${TEST_EXES})
+            file(INSTALL \${exe} DESTINATION \"\${CMAKE_INSTALL_PREFIX}/dist/bin\")
+        endforeach()
+    ")
+else()
+    # Linux/macOS：可执行文件直接在 test/ test-st/ 目录下
+    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/
+        DESTINATION dist/bin
+        USE_SOURCE_PERMISSIONS
+        FILES_MATCHING
+        PATTERN "*_test"
+        PATTERN "comprehensive_test"
+        PATTERN "*.c" EXCLUDE
+        PATTERN "*.o" EXCLUDE
+        PATTERN "*.d" EXCLUDE
+        PATTERN "CMakeFiles" EXCLUDE
+        PATTERN "Makefile" EXCLUDE
+        PATTERN "cmake_install.cmake" EXCLUDE
+        PATTERN "CMakeLists.txt" EXCLUDE
+    )
+    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test-st/
+        DESTINATION dist/bin
+        USE_SOURCE_PERMISSIONS
+        FILES_MATCHING
+        PATTERN "*_st"
+        PATTERN "*.c" EXCLUDE
+        PATTERN "*.o" EXCLUDE
+        PATTERN "*.d" EXCLUDE
+        PATTERN "CMakeFiles" EXCLUDE
+        PATTERN "Makefile" EXCLUDE
+        PATTERN "cmake_install.cmake" EXCLUDE
+        PATTERN "CMakeLists.txt" EXCLUDE
+    )
+endif()
 
 # 安装test-tapp示例程序及配套文件
 install(PROGRAMS ${CMAKE_CURRENT_SOURCE_DIR}/test-tapp/tglog_tapp
@@ -452,25 +507,41 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/bindings/python/README_PYTHON.md
     OPTIONAL
 )
 
-# 安装第三方依赖
-# jemalloc
-if(EXISTS ${JEMALLOC_INSTALL_DIR})
-    install(DIRECTORY ${JEMALLOC_INSTALL_DIR}/lib/
-        DESTINATION dist/thirdparty/jemalloc/lib
-    )
-    install(DIRECTORY ${JEMALLOC_INSTALL_DIR}/include/
-        DESTINATION dist/thirdparty/jemalloc/include
-    )
-endif()
+# 安装第三方依赖（Windows/Linux 逻辑统一：都从 thirdparty/ 拷贝到 dist/）
+if(WIN32)
+    # Windows 上 jemalloc 未构建，跳过
+    # libevent 构建时已通过 libevent_install_thirdparty 安装到 thirdparty/event/
+    if(EXISTS ${EVENT_INSTALL_DIR}/lib)
+        install(DIRECTORY ${EVENT_INSTALL_DIR}/lib/
+            DESTINATION dist/thirdparty/event/lib
+            FILES_MATCHING PATTERN "*.lib"
+        )
+    endif()
+    if(EXISTS ${EVENT_INSTALL_DIR}/include)
+        install(DIRECTORY ${EVENT_INSTALL_DIR}/include/
+            DESTINATION dist/thirdparty/event/include
+        )
+    endif()
+else()
+    # jemalloc
+    if(EXISTS ${JEMALLOC_INSTALL_DIR}/lib)
+        install(DIRECTORY ${JEMALLOC_INSTALL_DIR}/lib/
+            DESTINATION dist/thirdparty/jemalloc/lib
+        )
+        install(DIRECTORY ${JEMALLOC_INSTALL_DIR}/include/
+            DESTINATION dist/thirdparty/jemalloc/include
+        )
+    endif()
 
-# libevent
-if(EXISTS ${EVENT_INSTALL_DIR})
-    install(DIRECTORY ${EVENT_INSTALL_DIR}/lib/
-        DESTINATION dist/thirdparty/event/lib
-    )
-    install(DIRECTORY ${EVENT_INSTALL_DIR}/include/
-        DESTINATION dist/thirdparty/event/include
-    )
+    # libevent
+    if(EXISTS ${EVENT_INSTALL_DIR}/lib)
+        install(DIRECTORY ${EVENT_INSTALL_DIR}/lib/
+            DESTINATION dist/thirdparty/event/lib
+        )
+        install(DIRECTORY ${EVENT_INSTALL_DIR}/include/
+            DESTINATION dist/thirdparty/event/include
+        )
+    endif()
 endif()
 
 # 创建pkg-config文件
@@ -516,7 +587,7 @@ install(CODE "
 
 ## Directory Structure
 
-\\\`\\\`\\\`
+```
 dist/
 ├── lib/                    # Libraries
 │   ├── libtglog.a          # Multi-threaded (static)
@@ -534,13 +605,13 @@ dist/
 └── thirdparty/             # Dependencies
     ├── event/              # libevent
     └── jemalloc/           # jemalloc
-\\\`\\\`\\\`
+```
 
 ## Quick Start
 
 ### 1. Using Multi-threaded Version (tglog)
 
-\\\`\\\`\\\`c
+```c
 #include <tglog/tglog.h>
 
 int main() {
@@ -555,11 +626,11 @@ int main() {
     tglog_conf_destroy(conf);
     return 0;
 }
-\\\`\\\`\\\`
+```
 
 ### 2. Using Single-threaded Version (tglog-st)
 
-\\\`\\\`\\\`c
+```c
 #include <tglog-st/tglog.h>
 
 int main() {
@@ -575,13 +646,13 @@ int main() {
     tglog_conf_destroy(conf);
     return 0;
 }
-\\\`\\\`\\\`
+```
 
 ## Compilation Examples
 
 ### Method 1: Direct Compilation (Recommended)
 
-\\\`\\\`\\\`bash
+```bash
 # Multi-threaded version
 gcc -o myapp myapp.c \\\\
     -Iinclude/tglog \\\\
@@ -595,26 +666,26 @@ gcc -o myapp myapp.c \\\\
     -Ithirdparty/event/include \\\\
     -Llib -Lthirdparty/event/lib -Lthirdparty/jemalloc/lib \\\\
     -ltglog-st -levent -ljemalloc -lpthread
-\\\`\\\`\\\`
+```
 
 ### Method 2: Using pkg-config (Easiest)
 
 pkg-config automatically includes all dependencies (libevent, jemalloc):
 
-\\\`\\\`\\\`bash
+```bash
 # Set PKG_CONFIG_PATH (relative to dist directory)
 export PKG_CONFIG_PATH=\\\$(pwd)/lib/pkgconfig:\\\$PKG_CONFIG_PATH
 
 # Multi-threaded version
-gcc -o myapp myapp.c \`pkg-config --cflags --libs tglog\`
+gcc -o myapp myapp.c `pkg-config --cflags --libs tglog`
 
 # Single-threaded version
-gcc -o myapp myapp.c \`pkg-config --cflags --libs tglog-st\`
-\\\`\\\`\\\`
+gcc -o myapp myapp.c `pkg-config --cflags --libs tglog-st`
+```
 
 ### Method 3: Using Makefile (Like test/ examples)
 
-\\\`\\\`\\\`makefile
+```makefile
 # Multi-threaded version
 LIBDIR := lib thirdparty/event/lib thirdparty/jemalloc/lib
 STATIC_LIBS := tglog event event_pthreads jemalloc
@@ -628,7 +699,7 @@ myapp: myapp.c
 	    \\\$(addprefix -l,\\\$(DYNAMIC_LIBS))
 
 # Single-threaded version: replace tglog with tglog-st, include/tglog with include/tglog-st
-\\\`\\\`\\\`
+```
 
 ## Key Differences
 
@@ -636,7 +707,7 @@ myapp: myapp.c
 |---------|------------------------|----------------------------|
 | Performance | ~1M logs/sec | ~100K-200K logs/sec |
 | Worker Thread | Yes (automatic) | No (manual update) |
-| Update Call | Not needed | **Required** \\\`tglog_client_update()\\\` |
+| Update Call | Not needed | **Required** `tglog_client_update()` |
 | Memory Usage | Higher | Lower |
 | Use Case | High-throughput servers | Single-threaded apps, embedded |
 
@@ -644,36 +715,36 @@ myapp: myapp.c
 
 ### Test Programs
 
-See \\\`bin/\\\` directory for basic test programs:
-- Multi-threaded: \\\`tglog_test\\\`
-- Single-threaded: \\\`tglog_test_st\\\`, \\\`simple_perf_test_st\\\`
+See `bin/` directory for basic test programs:
+- Multi-threaded: `tglog_test`
+- Single-threaded: `tglog_test_st`, `simple_perf_test_st`
 
 Run test programs:
-\\\`\\\`\\\`bash
+```bash
 cd bin
 ./tglog_test           # Multi-threaded test
 ./tglog_test_st        # Single-threaded test
 ./simple_perf_test_st  # Single-threaded performance test
-\\\`\\\`\\\`
+```
 
 ### TAPP Integration Example
 
-See \\\`examples/test-tapp/\\\` for a complete TAPP application example:
+See `examples/test-tapp/` for a complete TAPP application example:
 
-\\\`\\\`\\\`bash
+```bash
 cd examples/test-tapp
 ./start.sh    # Start the TAPP application
 ./stop.sh     # Stop the TAPP application
-\\\`\\\`\\\`
+```
 
 ## Language Bindings
 
-- **Python**: See \\\`bindings/python/README_PYTHON.md\\\`
+- **Python**: See `bindings/python/README_PYTHON.md`
 
 ## Documentation
 
 For detailed documentation, see the source repository:
-- \\\`tglog/DESIGN.md\\\` - Multi-threaded version design
-- \\\`tglog-st/DESIGN.md\\\` - Single-threaded version design
+- `tglog/DESIGN.md` - Multi-threaded version design
+- `tglog-st/DESIGN.md` - Single-threaded version design
 \")
 ")

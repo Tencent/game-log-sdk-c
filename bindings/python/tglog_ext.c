@@ -12,6 +12,10 @@
 /* Platform-specific mutex abstraction */
 #ifdef _WIN32
     #include <windows.h>
+    /* MSVC does not have strcasecmp; use _stricmp instead */
+    #ifndef strcasecmp
+    #define strcasecmp _stricmp
+    #endif
     typedef CRITICAL_SECTION tglog_py_mutex_t;
     #define tglog_py_mutex_init(m) InitializeCriticalSection(m)
     #define tglog_py_mutex_destroy(m) DeleteCriticalSection(m)

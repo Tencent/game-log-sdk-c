@@ -74,3 +74,8 @@ REVIEW*.md
 .vs
 windows-*.md
 code-review-summary.md
+out
+test-st/Release
+test/Release
+bindings/python/tglog_ext.cp314-win_amd64.pyd
+CMakeSettings.json

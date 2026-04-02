@@ -1,10 +1,16 @@
 /* Standard library headers */
-#include <getopt.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-/* System headers */
+/* Windows compatibility layer (must come before POSIX headers) */
+#ifdef _WIN32
+#include "win_compat.h"
+#else
+#include <getopt.h>
 #include <sys/time.h>
 #include <unistd.h>
+#endif
 
 /* Third-party library headers */
 #include "tglog_atomic.h"

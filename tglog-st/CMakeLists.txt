@@ -50,13 +50,19 @@ set(HEADERS
         tglog.h
 )
 
-# 设置输出目录
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
+# 设置输出目录（per-target，避免影响全局）
+# set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
+# set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
 
 # 创建静态库
 add_library(tglog-st_static STATIC ${SOURCES})
-set_target_properties(tglog-st_static PROPERTIES OUTPUT_NAME "tglog-st")
+set_target_properties(tglog-st_static PROPERTIES
+        OUTPUT_NAME "tglog-st"
+        ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
+        PDB_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
+)
 
 # 设置静态库的包含目录
 target_include_directories(tglog-st_static PUBLIC
@@ -67,15 +73,19 @@ target_include_directories(tglog-st_static PUBLIC
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/include>
         $<INSTALL_INTERFACE:include/tglog-st>
 )
-if(WIN32)
-    target_include_directories(tglog-st_static PUBLIC
-            $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/event/include>
-    )
-endif()
 
 # 创建动态库
 add_library(tglog-st_shared SHARED ${SOURCES})
-set_target_properties(tglog-st_shared PROPERTIES OUTPUT_NAME "tglog-st")
+set_target_properties(tglog-st_shared PROPERTIES
+        OUTPUT_NAME "tglog-st"
+        ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
+        PDB_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
+)
+if(WIN32)
+    set_target_properties(tglog-st_shared PROPERTIES ARCHIVE_OUTPUT_NAME "tglog-st-import")
+endif()
 
 # 设置动态库的包含目录
 target_include_directories(tglog-st_shared PUBLIC
@@ -86,35 +96,36 @@ target_include_directories(tglog-st_shared PUBLIC
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/include>
         $<INSTALL_INTERFACE:include/tglog-st>
 )
-if(WIN32)
-    target_include_directories(tglog-st_shared PUBLIC
-            $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/event/include>
-    )
-endif()
 
 # 链接依赖库
 target_link_directories(tglog-st_static PRIVATE
         ${CMAKE_SOURCE_DIR}/thirdparty/event/lib
-        ${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/lib
 )
+if(NOT WIN32)
+    target_link_directories(tglog-st_static PRIVATE
+            ${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/lib
+    )
+endif()
 
 target_link_directories(tglog-st_shared PRIVATE
         ${CMAKE_SOURCE_DIR}/thirdparty/event/lib
-        ${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/lib
 )
+if(NOT WIN32)
+    target_link_directories(tglog-st_shared PRIVATE
+            ${CMAKE_SOURCE_DIR}/thirdparty/jemalloc/lib
+    )
+endif()
 
 # 根据系统平台设置链接选项
 # Note: jemalloc is NOT linked here - it should be linked by the final executable
 if (APPLE)
     target_link_libraries(tglog-st_shared PRIVATE
-            event
+            event event_pthreads
             pthread m
     )
 elseif (WIN32)
     target_link_libraries(tglog-st_shared PRIVATE
-            event_core_static
-            ws2_32
-            iphlpapi
+            event event_pthreads
     )
 else ()
     # Linux 系统，使用 -Wl,-Bstatic 和 -Wl,-Bdynamic
@@ -142,8 +153,17 @@ add_dependencies(tglog-st_shared jemalloc_build libevent_build event)
 install(TARGETS tglog-st_static tglog-st_shared
         ARCHIVE DESTINATION dist/lib
         LIBRARY DESTINATION dist/lib
-        RUNTIME DESTINATION dist/bin
+        RUNTIME DESTINATION dist/lib
 )
+if(WIN32)
+    # 安装 PDB 和 EXP 文件到 dist/lib
+    install(FILES
+            $<TARGET_PDB_FILE:tglog-st_shared>
+            "$<TARGET_LINKER_FILE_DIR:tglog-st_shared>/tglog-st-import.exp"
+            DESTINATION dist/lib
+            OPTIONAL
+    )
+endif()
 
 install(FILES ${HEADERS}
         DESTINATION dist/include/tglog-st

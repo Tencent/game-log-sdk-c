@@ -9,7 +9,7 @@ TGLog SDK is a high-performance C99 logging client library supporting 100K-1M lo
 ## Project Structure & Module Organization
 Core C SDK code is split into two modules:
 - `tglog/`: multi-threaded client library (`libtglog.a/.so`) - ~1M logs/sec
-- `tglog-st/`: single-threaded client library (`libtglog-st.a/.so`) - 10-20K logs/sec
+- `tglog-st/`: single-threaded client library (`libtglog-st.a/.so`) - ~100-200K logs/sec
 
 Tests and examples live in:
 - `test/`: multi-threaded C test programs
@@ -46,6 +46,8 @@ Both variants consist of similar file structures:
 - `make bindings` or `make python`: build Python bindings.
 - `make check-deps`: verify expected libraries/binaries exist.
 - `make clean` / `make clean-deps`: clean project outputs or dependency outputs.
+- `make RELEASE=1`: optimized build (`-O2 -DNDEBUG`).
+- `make V=1`: verbose build output.
 
 CMake workflow is also supported:
 - `cmake -S . -B build && cmake --build build -j4`
@@ -60,6 +62,51 @@ CMake workflow is also supported:
 1. **Config changes**: Edit `tglog_conf` struct in `tglog/conf.h` and `tglog-st/conf.h`. Update `tglog_conf_set_default()`.
 2. **Metrics**: Add to `tglog_metrics` in `metrics.h` using lock-free `ck_pr_*` (multi-threaded) and regular operations (single-threaded). Print them via `tglog_client_print_metrics()`.
 3. **Memory management**: Never link `jemalloc` in the core SDK library. The user app provides it. Use `pool.c/h` for memory object pooling.
+
+## Public API Reference
+
+### Core send function (both variants)
+```c
+int tglog_client_send(tglog_client *client, const char *payload,
+                      tglog_send_callback cb, void *user_data,
+                      tglog_msg_flag flag);
+```
+
+### `msg_flag` values
+```c
+TGLOG_MSG_F_NONE  // zero-copy; caller retains ownership, SDK does NOT free
+TGLOG_MSG_F_FREE  // SDK calls free() after send (even on error); payload must be malloc'd
+TGLOG_MSG_F_COPY  // SDK copies; caller retains ownership — recommended default
+```
+
+### Multi-threaded only
+- `tglog_use_thread()` — **must be called once per process** before creating any client.
+- Callbacks (`can_log`, `write_log`, `tglog_send_callback`) are invoked from worker threads and **must be thread-safe**.
+
+### Single-threaded only
+- `tglog_client_update(client)` — **must be called periodically** in the main loop to drive I/O. If not called, nothing is ever sent.
+- Single-threaded-specific config fields: `max_update_us` (default 300µs) and `max_messages_per_update` (default 20).
+
+## Wire Protocol
+
+Payload format:
+```
+tglogname|field1=value1|field2=value2|...|fieldN=valueN\n
+```
+- Each message **must end with `\n`**.
+- Field values **cannot contain `\n` or `|`** (must be escaped by the caller).
+- UDP mode hard limit: **65,507 bytes** per batch.
+
+## Linking Against the SDK
+
+```bash
+# Multi-threaded
+gcc your_app.c -o app -ltglog -levent -levent_pthreads -lck -ljemalloc -lpthread -lm
+
+# Single-threaded
+gcc your_app.c -o app -ltglog-st -levent -lck -ljemalloc -lpthread -lm
+```
+`jemalloc` is **not** linked into the SDK itself — the final executable must provide it.
 
 ## Coding Style & Naming Conventions
 Use C99 and keep code warning-free under project flags (`-Wall`, module-specific strict flags where enabled).
@@ -85,3 +132,11 @@ Initialize submodules before first build:
 - `git submodule update --init --recursive`
 
 If building from a ZIP archive, use `./download-deps.sh` before `make` when dependencies are missing.
+
+## Important Pitfalls
+
+- **No end-to-end delivery confirmation**: send success means data reached the OS network buffer, not the server. There is no application-layer ack.
+- **Single-threaded stall**: forgetting `tglog_client_update()` means no messages are ever dispatched.
+- **Process-level init**: `tglog_use_thread()` is required once per process for the multi-threaded variant only; there is no equivalent for `tglog-st`.
+- **CLB reconnection**: do not set `max_conn_lifetime` to 0 or negative when behind a Cloud Load Balancer — periodic reconnects are needed for proper load distribution.
+- **ConcurrencyKit is Unix-only**: the SDK does not support Windows.
