@@ -86,7 +86,7 @@ ssize_t tglog_conn_send(tglog_conn *conn, const void *data, size_t len) {
      * 的，只能通过写socket成功表示发送成功，所以我们这里直接把数据写到socket上，这样可以减少一次数据拷贝，也可以及时的知道数据是否发送成功并触发回调。
     */
     /*return bufferevent_write(conn->bev, data, len);*/
-    return send(conn->fd, data, len, MSG_NOSIGNAL);
+    return send(conn->fd, data, (int)len, MSG_NOSIGNAL);
 }
 
 ssize_t tglog_conn_sendv(tglog_conn *conn, const struct iovec *iov, int iovcnt) {
@@ -120,7 +120,7 @@ ssize_t tglog_conn_send_with_bufferevent(tglog_conn *conn, const void *data, siz
     }
 
     /* If out_buf is empty, try to send directly */
-    ssize_t sent = send(conn->fd, data, len, MSG_NOSIGNAL);
+    ssize_t sent = send(conn->fd, data, (int)len, MSG_NOSIGNAL);
 
     /* Send success */
     if (sent == (ssize_t) len) {

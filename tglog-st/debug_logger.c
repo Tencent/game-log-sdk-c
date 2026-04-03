@@ -85,13 +85,18 @@ void tglog_std_write_log(void *user_data, tglog_level level, const char *file, c
     struct timeval tv;
     gettimeofday(&tv, NULL);
 
+    time_t now = (time_t)tv.tv_sec;
     struct tm time_info_buf;
     struct tm *time_info;
-    time_info = localtime_r(&tv.tv_sec, &time_info_buf);
+    time_info = localtime_r(&now, &time_info_buf);
 
     char time_buffer[64];
     const char *time_format = "%Y-%m-%d %H:%M:%S";
-    strftime(time_buffer, sizeof(time_buffer), time_format, time_info);
+    if (time_info != NULL) {
+        strftime(time_buffer, sizeof(time_buffer), time_format, time_info);
+    } else {
+        snprintf(time_buffer, sizeof(time_buffer), "1970-01-01 00:00:00");
+    }
     snprintf(time_buffer + 19, sizeof(time_buffer) - 19, ".%06ld", (long) tv.tv_usec);
 
     char log_buffer[4096];

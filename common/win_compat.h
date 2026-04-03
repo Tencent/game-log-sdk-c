@@ -26,19 +26,57 @@
 /* -----------------------------------------------------------------------
  * gettimeofday
  * ----------------------------------------------------------------------- */
+typedef VOID (WINAPI *tglog_get_system_time_precise_as_file_time_fn)(LPFILETIME);
+
+static inline uint64_t tglog_win_filetime_to_epoch_us(const FILETIME *ft) {
+    uint64_t t = ((uint64_t)ft->dwHighDateTime << 32) | ft->dwLowDateTime;
+    t -= 116444736000000000ULL;
+    return t / 10ULL;
+}
+
+static inline uint64_t tglog_win_qpc_time_us(void) {
+    static LARGE_INTEGER freq = {0};
+    static LARGE_INTEGER start_counter = {0};
+    static uint64_t start_epoch_us = 0;
+    LARGE_INTEGER now;
+
+    if (freq.QuadPart == 0) {
+        FILETIME ft;
+        QueryPerformanceFrequency(&freq);
+        QueryPerformanceCounter(&start_counter);
+        GetSystemTimeAsFileTime(&ft);
+        start_epoch_us = tglog_win_filetime_to_epoch_us(&ft);
+    }
+
+    QueryPerformanceCounter(&now);
+    return start_epoch_us + (uint64_t)((now.QuadPart - start_counter.QuadPart) * 1000000ULL / freq.QuadPart);
+}
+
 static inline int gettimeofday(struct timeval *tv, void *tz) {
     (void)tz;
     if (tv) {
-        FILETIME ft;
-        GetSystemTimeAsFileTime(&ft);
-        /* Convert from 100-nanosecond intervals since 1601-01-01
-         * to microseconds since 1970-01-01 */
-        uint64_t t = ((uint64_t)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
-        /* 11644473600 seconds between 1601 and 1970 epochs */
-        t -= 116444736000000000ULL;
-        t /= 10; /* 100-ns -> microseconds */
-        tv->tv_sec  = (long)(t / 1000000ULL);
-        tv->tv_usec = (long)(t % 1000000ULL);
+        static tglog_get_system_time_precise_as_file_time_fn precise_time_fn = NULL;
+        static int precise_time_checked = 0;
+        uint64_t epoch_us;
+
+        if (!precise_time_checked) {
+            HMODULE kernel32 = GetModuleHandleA("kernel32.dll");
+            if (kernel32 != NULL) {
+                precise_time_fn = (tglog_get_system_time_precise_as_file_time_fn)GetProcAddress(kernel32, "GetSystemTimePreciseAsFileTime");
+            }
+            precise_time_checked = 1;
+        }
+
+        if (precise_time_fn != NULL) {
+            FILETIME ft;
+            precise_time_fn(&ft);
+            epoch_us = tglog_win_filetime_to_epoch_us(&ft);
+        } else {
+            epoch_us = tglog_win_qpc_time_us();
+        }
+
+        tv->tv_sec  = (long)(epoch_us / 1000000ULL);
+        tv->tv_usec = (long)(epoch_us % 1000000ULL);
     }
     return 0;
 }

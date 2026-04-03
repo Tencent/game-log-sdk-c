@@ -8,6 +8,9 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 #pragma comment(lib, "ws2_32.lib")
+#ifndef strdup
+#define strdup _strdup
+#endif
 #else
 
 #include <arpa/inet.h>
@@ -79,7 +82,7 @@ static void *tglog_discoverer_thread(void *arg)
 
     event_base_dispatch(discoverer->base);
 
-    return NULL;
+    return 0;
 }
 
 static void tglog_discoverer_on_timer(evutil_socket_t fd, short event, void *arg) {

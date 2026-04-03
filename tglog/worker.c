@@ -72,15 +72,16 @@ static void *tglog_worker_thread(void *user_data)
 }
 
 static void tglog_worker_set_endpoint_retry_count(tglog_worker *worker, char *addr, int value) {
+    uint16_t addr_len = (uint16_t)strlen(addr);
     tglog_ht_hash_t hash;
-    tglog_ht_hash(&hash, &worker->endpoint_retry_counts, addr, strlen(addr));
+    tglog_ht_hash(&hash, &worker->endpoint_retry_counts, addr, addr_len);
 
     tglog_ht_entry_t entry;
-    tglog_ht_entry_key_set(&entry, addr, strlen(addr));
+    tglog_ht_entry_key_set(&entry, addr, addr_len);
     bool ok = tglog_ht_get(&worker->endpoint_retry_counts, hash, &entry);
     if (ok) {
         /* Use the old key pointer here */
-        tglog_ht_entry_set(&entry, hash, tglog_ht_entry_key(&entry), strlen(addr), (void *) (intptr_t) value);
+        tglog_ht_entry_set(&entry, hash, tglog_ht_entry_key(&entry), addr_len, (void *) (intptr_t) value);
         if (tglog_ht_set(&worker->endpoint_retry_counts, hash, &entry)) {
             tglog_info(worker->logger, "Set endpoint retry count, worker: %d , addr: %s, retry_count: %d", worker->id, addr, value);
         } else {
@@ -90,7 +91,7 @@ static void tglog_worker_set_endpoint_retry_count(tglog_worker *worker, char *ad
     }
 
     /* Duplicate the addr here */
-    tglog_ht_entry_set(&entry, hash, strdup(addr), strlen(addr), (void *) (intptr_t) 1);
+    tglog_ht_entry_set(&entry, hash, strdup(addr), addr_len, (void *) (intptr_t) 1);
     if (!tglog_ht_set(&worker->endpoint_retry_counts, hash, &entry)) {
         tglog_error(worker->logger, "Set endpoint retry count failed, worker: %d , addr: %s, retry_count: %d", worker->id, addr, value);
         free(tglog_ht_entry_key(&entry));
@@ -100,11 +101,12 @@ static void tglog_worker_set_endpoint_retry_count(tglog_worker *worker, char *ad
 }
 
 static int tglog_worker_get_endpoint_retry_count(tglog_worker *worker, char *addr) {
+    uint16_t addr_len = (uint16_t)strlen(addr);
     tglog_ht_hash_t hash;
-    tglog_ht_hash(&hash, &worker->endpoint_retry_counts, addr, strlen(addr));
+    tglog_ht_hash(&hash, &worker->endpoint_retry_counts, addr, addr_len);
 
     tglog_ht_entry_t entry;
-    tglog_ht_entry_key_set(&entry, addr, strlen(addr));
+    tglog_ht_entry_key_set(&entry, addr, addr_len);
     bool ok = tglog_ht_get(&worker->endpoint_retry_counts, hash, &entry);
     if (!ok) {
         tglog_error(worker->logger, "Get endpoint retry count failed, worker: %d , addr: %s", worker->id, addr);
@@ -116,11 +118,12 @@ static int tglog_worker_get_endpoint_retry_count(tglog_worker *worker, char *add
 }
 
 static void tglog_worker_del_endpoint_retry_count(tglog_worker *worker, char *addr) {
+    uint16_t addr_len = (uint16_t)strlen(addr);
     tglog_ht_hash_t hash;
-    tglog_ht_hash(&hash, &worker->endpoint_retry_counts, addr, strlen(addr));
+    tglog_ht_hash(&hash, &worker->endpoint_retry_counts, addr, addr_len);
 
     tglog_ht_entry_t entry;
-    tglog_ht_entry_key_set(&entry, addr, strlen(addr));
+    tglog_ht_entry_key_set(&entry, addr, addr_len);
     if (tglog_ht_remove(&worker->endpoint_retry_counts, hash, &entry)) {
         /* Free the key */
         free(tglog_ht_entry_key(&entry));
@@ -135,6 +138,7 @@ static int tglog_worker_get_conn_count_by_addr(tglog_worker *worker, char *addr)
 }
 
 static void tglog_worker_mark_endpoint_unavailable(tglog_worker *worker, char *addr) {
+    uint16_t addr_len = (uint16_t)strlen(addr);
     int ep_count = (int) worker->endpoints->count;
     /* When we dial a new conn, we will ignore the unavailable endpoint, if there is only 1 endpoint,
      * we don't mark it unavailable anymore, or we will have no endpoint to dial.
@@ -150,10 +154,10 @@ static void tglog_worker_mark_endpoint_unavailable(tglog_worker *worker, char *a
     }
 
     tglog_ht_hash_t hash;
-    tglog_ht_hash(&hash, &worker->unavailable_endpoints, addr, strlen(addr));
+    tglog_ht_hash(&hash, &worker->unavailable_endpoints, addr, addr_len);
 
     tglog_ht_entry_t entry;
-    tglog_ht_entry_key_set(&entry, addr, strlen(addr));
+    tglog_ht_entry_key_set(&entry, addr, addr_len);
     bool ok = tglog_ht_get(&worker->unavailable_endpoints, hash, &entry);
     if (ok) {
         tglog_warn(worker->logger, "Endpoint already marked unavailable, worker: %d, addr: %s", worker->id, addr);
@@ -162,7 +166,7 @@ static void tglog_worker_mark_endpoint_unavailable(tglog_worker *worker, char *a
 
     time_t value = time(NULL);
     /* Duplicate the addr, we need to free the key when we delete it or when we destroy the worker */
-    tglog_ht_entry_set(&entry, hash, strdup(addr), strlen(addr), (void *) (intptr_t) value);
+    tglog_ht_entry_set(&entry, hash, strdup(addr), addr_len, (void *) (intptr_t) value);
     if (!tglog_ht_put(&worker->unavailable_endpoints, hash, &entry)) {
         tglog_error(worker->logger, "Mark endpoint unavailable failed, worker: %d, addr: %s", worker->id, addr);
         free(tglog_ht_entry_key(&entry));
@@ -173,11 +177,12 @@ static void tglog_worker_mark_endpoint_unavailable(tglog_worker *worker, char *a
 }
 
 static time_t tglog_worker_is_endpoint_unavailable(tglog_worker *worker, char *addr) {
+    uint16_t addr_len = (uint16_t)strlen(addr);
     tglog_ht_hash_t hash;
-    tglog_ht_hash(&hash, &worker->unavailable_endpoints, addr, strlen(addr));
+    tglog_ht_hash(&hash, &worker->unavailable_endpoints, addr, addr_len);
 
     tglog_ht_entry_t entry;
-    tglog_ht_entry_key_set(&entry, addr, strlen(addr));
+    tglog_ht_entry_key_set(&entry, addr, addr_len);
     if (!tglog_ht_get(&worker->unavailable_endpoints, hash, &entry)) {
         return 0;
     }
@@ -186,11 +191,12 @@ static time_t tglog_worker_is_endpoint_unavailable(tglog_worker *worker, char *a
 }
 
 static void tglog_worker_del_unavailable_endpoint(tglog_worker *worker, char *addr) {
+    uint16_t addr_len = (uint16_t)strlen(addr);
     tglog_ht_hash_t hash;
-    tglog_ht_hash(&hash, &worker->unavailable_endpoints, addr, strlen(addr));
+    tglog_ht_hash(&hash, &worker->unavailable_endpoints, addr, addr_len);
 
     tglog_ht_entry_t entry;
-    tglog_ht_entry_key_set(&entry, addr, strlen(addr));
+    tglog_ht_entry_key_set(&entry, addr, addr_len);
     if (tglog_ht_remove(&worker->unavailable_endpoints, hash, &entry)) {
         free(tglog_ht_entry_key(&entry));
         return;
@@ -1864,7 +1870,7 @@ tglog_worker *tglog_worker_create(int id, tglog_client *client) {
     return NULL;
 }
 
-static void tglog_worker_drain_and_stop(int fd, short what, void *user_data) {
+static void tglog_worker_drain_and_stop(evutil_socket_t fd, short what, void *user_data) {
     (void) fd;
     (void) what;
     tglog_worker *worker = (tglog_worker *) user_data;

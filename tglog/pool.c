@@ -1,6 +1,7 @@
 /* Standard library headers */
 #include <math.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 /* System headers */
 #include "tglog_platform.h"
@@ -293,10 +294,10 @@ int tglog_mem_pool_stats_print(tglog_mem_pool_stats *stats, char *buffer, size_t
     n = snprintf(buffer + offset, size - offset,
                  "\n=== TGLog Memory Pool Statistics ===\n"
                  "\nMessage Pool:\n"
-                 "  Capacity:     %lu\n"
-                 "  Hits:         %lu\n"
-                 "  Misses:       %lu\n"
-                 "  Returns:      %lu\n"
+                 "  Capacity:     %" PRIu64 "\n"
+                 "  Hits:         %" PRIu64 "\n"
+                 "  Misses:       %" PRIu64 "\n"
+                 "  Returns:      %" PRIu64 "\n"
                  "  Hit Rate:     %.2f%%\n",
                  stats->msg_pool_capacity,
                  stats->msg_pool_hit_count,
@@ -329,7 +330,7 @@ int tglog_mem_pool_stats_print(tglog_mem_pool_stats *stats, char *buffer, size_t
             double usage = (double) used / stats->payload_stats[i].capacity * 100.0;
 
             n = snprintf(buffer + offset, size - offset,
-                         "  %-10zu %-10lu %-10lu %-10lu %-10lu %-10lu %-9.2f%% %-9.2f%%\n",
+                         "  %-10zu %-10" PRIu64 " %-10" PRIu64 " %-10" PRIu64 " %-10" PRIu64 " %-10" PRIu64 " %-9.2f%% %-9.2f%%\n",
                          stats->payload_stats[i].block_size,
                          stats->payload_stats[i].capacity,
                          stats->payload_stats[i].current_free,
@@ -349,9 +350,9 @@ int tglog_mem_pool_stats_print(tglog_mem_pool_stats *stats, char *buffer, size_t
     /* Print payload pools summary */
     n = snprintf(buffer + offset, size - offset,
                  "\nPayload Pools Summary:\n"
-                 "  Total Hits:    %lu\n"
-                 "  Total Misses:  %lu\n"
-                 "  Total Returns: %lu\n"
+                 "  Total Hits:    %" PRIu64 "\n"
+                 "  Total Misses:  %" PRIu64 "\n"
+                 "  Total Returns: %" PRIu64 "\n"
                  "  Hit Rate:      %.2f%%\n\n",
                  stats->total_payload_hits,
                  stats->total_payload_misses,
@@ -383,10 +384,10 @@ int tglog_mem_pool_stats_print_json(tglog_mem_pool_stats *stats, char *buffer, s
     /* Message pool statistics */
     n = snprintf(buffer + offset, size - offset,
                  "  \"message_pool\": {\n"
-                 "    \"capacity\": %lu,\n"
-                 "    \"hits\": %lu,\n"
-                 "    \"misses\": %lu,\n"
-                 "    \"returns\": %lu,\n"
+                 "    \"capacity\": %" PRIu64 ",\n"
+                 "    \"hits\": %" PRIu64 ",\n"
+                 "    \"misses\": %" PRIu64 ",\n"
+                 "    \"returns\": %" PRIu64 ",\n"
                  "    \"hit_rate\": %.2f\n"
                  "  },\n",
                  stats->msg_pool_capacity,
@@ -424,12 +425,12 @@ int tglog_mem_pool_stats_print_json(tglog_mem_pool_stats *stats, char *buffer, s
             n = snprintf(buffer + offset, size - offset,
                          "    {\n"
                          "      \"size\": %zu,\n"
-                         "      \"capacity\": %lu,\n"
-                         "      \"free\": %lu,\n"
-                         "      \"used\": %lu,\n"
-                         "      \"hits\": %lu,\n"
-                         "      \"misses\": %lu,\n"
-                         "      \"returns\": %lu,\n"
+                         "      \"capacity\": %" PRIu64 ",\n"
+                         "      \"free\": %" PRIu64 ",\n"
+                         "      \"used\": %" PRIu64 ",\n"
+                         "      \"hits\": %" PRIu64 ",\n"
+                         "      \"misses\": %" PRIu64 ",\n"
+                         "      \"returns\": %" PRIu64 ",\n"
                          "      \"hit_rate\": %.2f\n"
                          "    }",
                          stats->payload_stats[i].block_size,
@@ -457,9 +458,9 @@ int tglog_mem_pool_stats_print_json(tglog_mem_pool_stats *stats, char *buffer, s
     /* Payload statistics summary */
     n = snprintf(buffer + offset, size - offset,
                  "  \"summary\": {\n"
-                 "    \"total_payload_hits\": %lu,\n"
-                 "    \"total_payload_misses\": %lu,\n"
-                 "    \"total_payload_returns\": %lu,\n"
+                 "    \"total_payload_hits\": %" PRIu64 ",\n"
+                 "    \"total_payload_misses\": %" PRIu64 ",\n"
+                 "    \"total_payload_returns\": %" PRIu64 ",\n"
                  "    \"total_payload_hit_rate\": %.2f\n"
                  "  }\n"
                  "}\n",

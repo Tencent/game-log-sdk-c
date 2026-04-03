@@ -80,17 +80,60 @@ TGLOG_INLINE ssize_t writev(evutil_socket_t fd, const struct iovec *iov, int iov
 }
 
 /* === gettimeofday ===
- * Note: Windows struct timeval uses 'long' for tv_sec (32-bit even on Win64).
- * This is safe until year 2038. For post-2038 usage, consider a 64-bit
- * time source. We cast to the actual field type to suppress warnings. */
+ * Prefer GetSystemTimePreciseAsFileTime when available. On older Windows,
+ * fall back to a QueryPerformanceCounter-based wall clock calibrated against
+ * GetSystemTimeAsFileTime to provide microsecond-resolution timestamps. */
+typedef VOID (WINAPI *tglog_get_system_time_precise_as_file_time_fn)(LPFILETIME);
+
+TGLOG_INLINE uint64_t tglog_win_filetime_to_epoch_us(const FILETIME *ft) {
+    uint64_t t = ((uint64_t)ft->dwHighDateTime << 32) | ft->dwLowDateTime;
+    t -= 116444736000000000ULL; /* Jan 1, 1601 -> Jan 1, 1970 */
+    return t / 10ULL;
+}
+
+TGLOG_INLINE uint64_t tglog_win_qpc_time_us(void) {
+    static LARGE_INTEGER freq = {0};
+    static LARGE_INTEGER start_counter = {0};
+    static uint64_t start_epoch_us = 0;
+    LARGE_INTEGER now;
+
+    if (freq.QuadPart == 0) {
+        FILETIME ft;
+        QueryPerformanceFrequency(&freq);
+        QueryPerformanceCounter(&start_counter);
+        GetSystemTimeAsFileTime(&ft);
+        start_epoch_us = tglog_win_filetime_to_epoch_us(&ft);
+    }
+
+    QueryPerformanceCounter(&now);
+    return start_epoch_us + (uint64_t)((now.QuadPart - start_counter.QuadPart) * 1000000ULL / freq.QuadPart);
+}
+
 TGLOG_INLINE int gettimeofday(struct timeval *tv, void *tz) {
     (void)tz;
-    FILETIME ft;
-    GetSystemTimeAsFileTime(&ft);
-    uint64_t t = ((uint64_t)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
-    t -= 116444736000000000ULL; /* Jan 1, 1601 -> Jan 1, 1970 */
-    tv->tv_sec  = (long)(t / 10000000ULL);
-    tv->tv_usec = (long)((t % 10000000ULL) / 10);
+
+    static tglog_get_system_time_precise_as_file_time_fn precise_time_fn = NULL;
+    static int precise_time_checked = 0;
+    uint64_t epoch_us;
+
+    if (!precise_time_checked) {
+        HMODULE kernel32 = GetModuleHandleA("kernel32.dll");
+        if (kernel32 != NULL) {
+            precise_time_fn = (tglog_get_system_time_precise_as_file_time_fn)GetProcAddress(kernel32, "GetSystemTimePreciseAsFileTime");
+        }
+        precise_time_checked = 1;
+    }
+
+    if (precise_time_fn != NULL) {
+        FILETIME ft;
+        precise_time_fn(&ft);
+        epoch_us = tglog_win_filetime_to_epoch_us(&ft);
+    } else {
+        epoch_us = tglog_win_qpc_time_us();
+    }
+
+    tv->tv_sec = (long)(epoch_us / 1000000ULL);
+    tv->tv_usec = (long)(epoch_us % 1000000ULL);
     return 0;
 }
 
