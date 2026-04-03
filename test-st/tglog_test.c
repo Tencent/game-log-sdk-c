@@ -170,7 +170,7 @@ int main(int argc, char *argv[]) {
     char *log = "CarryOutItemFlow|/cnprod-a/36/settlementsvr/nanjing/11.176.45.170/1|2025-07-14 13:39:23|wx39308a0a1bd83d22|1|36|18182882159345025898|18182882159345025898|2340077323481036542|11090000053|1|648520772929162293|0|4|0.100|109|1|0|||0|0|||648530419497318933|2340077323481036542||\n";
 
     /* Main loop */
-    int i = 0;
+    uint32_t i = 0;
     while (i < to_send) {
         /* Use token bucket to limit the rate for smooth sending */
         if (!consume_token(&send_bucket, 1)) {

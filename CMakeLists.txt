@@ -154,6 +154,7 @@ if(WIN32)
     set(EVENT__DISABLE_SAMPLES ON CACHE BOOL "Disable samples" FORCE)
     set(EVENT__DISABLE_OPENSSL ON CACHE BOOL "Disable openssl" FORCE)
     set(EVENT__LIBRARY_TYPE STATIC CACHE STRING "Build static libevent" FORCE)
+    set(EVENT__MSVC_STATIC_RUNTIME OFF CACHE BOOL "Use DLL runtime for libevent" FORCE)
 
     # 禁止 libevent 的 install() 规则污染本项目的安装目录
     # （libevent 默认会把头文件装到 CMAKE_INSTALL_PREFIX/include）
@@ -168,13 +169,13 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E make_directory ${EVENT_INSTALL_DIR}/lib
         COMMAND ${CMAKE_COMMAND} -E make_directory ${EVENT_INSTALL_DIR}/include
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                ${CMAKE_BINARY_DIR}/event_build/lib/$<CONFIG>/event.lib
+                $<TARGET_FILE:event_static>
                 ${EVENT_INSTALL_DIR}/lib/event.lib
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                ${CMAKE_BINARY_DIR}/event_build/lib/$<CONFIG>/event_core.lib
+                $<TARGET_FILE:event_core_static>
                 ${EVENT_INSTALL_DIR}/lib/event_core.lib
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                ${CMAKE_BINARY_DIR}/event_build/lib/$<CONFIG>/event_extra.lib
+                $<TARGET_FILE:event_extra_static>
                 ${EVENT_INSTALL_DIR}/lib/event_extra.lib
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${EVENT_SRC_DIR}/include
@@ -189,22 +190,19 @@ if(WIN32)
     add_custom_target(libevent_build)
     add_dependencies(libevent_build libevent_install_thirdparty)
 
-    # 与 Linux 完全一致：
-    # - event 目标指向已安装的 thirdparty/event/lib/event.lib（覆盖 libevent add_subdirectory
-    #   中定义的 event INTERFACE，使其指向安装路径而非 in-build 的 event_static）
-    # - event_pthreads 在 Linux 上是 libevent_pthreads.a；Windows 上用 INTERFACE 携带等价系统库
-    set_property(TARGET event PROPERTY INTERFACE_LINK_LIBRARIES
-        ${EVENT_INSTALL_DIR}/lib/event.lib
-    )
+    # 保留 libevent 自己生成的 target 依赖关系：
+    # event -> event_static。不要把 event 覆盖成裸文件路径，否则 VS/MSBuild
+    # 只能看到 thirdparty/event/lib/event.lib，而看不到它由哪个 target 生成。
     target_include_directories(event INTERFACE
         ${EVENT_SRC_DIR}/include
+        ${CMAKE_BINARY_DIR}/event_build/include
         ${EVENT_INSTALL_DIR}/include
     )
-    add_dependencies(event libevent_build)
+    add_dependencies(event libevent_install_thirdparty)
 
     add_library(event_pthreads INTERFACE)
     target_link_libraries(event_pthreads INTERFACE ws2_32 iphlpapi)
-    add_dependencies(event_pthreads libevent_build)
+    add_dependencies(event_pthreads libevent_install_thirdparty)
 else()
     include(ExternalProject)
 
@@ -336,6 +334,18 @@ add_custom_target(all_deps ALL
     DEPENDS jemalloc_build libevent_build
     COMMENT "Ensuring all dependencies are built..."
 )
+
+# 让标准 clean/Clean All 也删除放在源码树 lib/ 下的 Windows 链接器工件
+if(WIN32)
+    set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_CLEAN_FILES
+        ${LIB_DIR}/tglog-import.exp
+        ${LIB_DIR}/tglog.ilk
+        ${LIB_DIR}/tglog.pdb
+        ${LIB_DIR}/tglog-st-import.exp
+        ${LIB_DIR}/tglog-st.ilk
+        ${LIB_DIR}/tglog-st.pdb
+    )
+endif()
 
 # 清理依赖项
 add_custom_target(clean-deps

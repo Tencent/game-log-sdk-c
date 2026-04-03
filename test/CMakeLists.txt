@@ -79,6 +79,14 @@ foreach (test_source ${TEST_SOURCES})
     set_target_properties(${test_name} PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
+
+    if(WIN32)
+        set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_CLEAN_FILES
+                ${CMAKE_CURRENT_SOURCE_DIR}/${test_name}.exp
+                ${CMAKE_CURRENT_SOURCE_DIR}/${test_name}.ilk
+                ${CMAKE_CURRENT_SOURCE_DIR}/${test_name}.pdb
+        )
+    endif()
 endforeach ()
 
 # 创建一个总的测试目标
