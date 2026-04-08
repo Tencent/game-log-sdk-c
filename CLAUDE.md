@@ -14,7 +14,6 @@ TGLog SDK is a high-performance C logging client library designed for efficient 
 - Performance: ~1.2M logs/sec (multi-threaded), ~100-200K logs/sec (single-threaded)
 
 **Known Limitations:**
-- Windows platform not supported (ConcurrencyKit limitation)
 - Log messages cannot contain `\n` characters except at the end
 - UDP mode limited to 65507 bytes per batch
 - Protocol is request-only with no server acknowledgment
@@ -55,6 +54,24 @@ cmake -DRELEASE=1 ..       # Release build
 make -j4                    # Build all
 make install                # Install to dist/
 ```
+
+### Windows: CMake + MSVC
+
+```bash
+git clone --recurse-submodules <repo-url>
+cd sdk-c
+mkdir out && cd out
+cmake ..
+cmake --build . --config Release
+cmake --install . --config Release
+```
+
+- Requires Visual Studio 2019+ (or Build Tools) with "Desktop development with C++" workload
+- libevent is built via `add_subdirectory`, no manual setup needed
+- Does not use ConcurrencyKit or jemalloc on Windows
+- Builds both multi-threaded (tglog) and single-threaded (tglog-st) versions
+- Multi-threaded version uses Windows native thread API instead of pthread
+- Links `ws2_32` for Windows Sockets
 
 ### Dependency Management
 

@@ -9,7 +9,6 @@ TGLog SDK 是一个专为高性能日志传输设计的C语言客户端库，提
 
 > 说明：如需使用Java，请使用纯Java版本的[SDK](https://git.woa.com/tglog/v3/sdk-java)
 ## 📝 已知限制
-- 不支持 Windows 平台（ConcurrencyKit 限制）
 - 单条日志消息除了结尾不能包含 `\n` 字符，如果日志字段值内部要包含`\n`或`|`，需要把这2个字符转义
 - UDP 模式下单个批次不能超过 65507 字节
 - 因为历史原因，协议是只有请求没有响应的，发送成功仅表示数据写入网络缓冲区成功，不表示服务器一定收到，有发送失败重试机制，但没有应用层确认和重传机制
@@ -57,11 +56,11 @@ TGLog SDK 是一个专为高性能日志传输设计的C语言客户端库，提
 > **重要说明**: TGLog库本身不链接jemalloc，而是由最终的可执行程序或语言绑定链接。这样可以避免版本冲突，让用户自由选择内存分配器。
 
 ### 编译环境
-- **C编译器**: 支持C99标准 (GCC 4.9+, Clang 3.9+)
-- **操作系统**: Linux, macOS, FreeBSD
-- **架构**: x86_64, ARM64
+- **C编译器**: 支持C99标准 (GCC 4.9+, Clang 3.9+, MSVC 2019+)
+- **操作系统**: Linux, Windows
+- **架构**: x86_64
 
-> 说明：因ConcurrencyKit不支持在VisualStudio上编译，所以不支持Window平台。
+> 说明：Windows 平台使用 CMake + MSVC 构建，不依赖 ConcurrencyKit 和 jemalloc。详见下方 [Windows 构建](#方式三windows-使用-cmake--msvc) 章节。
 
 ### 语言绑定要求
 - **Python**: Python 3.6或更高版本
@@ -150,6 +149,51 @@ make install
 - 推荐使用独立的构建目录（out-of-source build）
 - CMake 会生成 `compile_commands.json`，便于 IDE 集成（CLion、VSCode等）
 - 构建行为与 Makefile 完全一致
+
+#### 方式三：Windows 使用 CMake + MSVC
+
+Windows 平台使用 CMake 作为构建入口，支持 Visual Studio 2019 及以上版本。
+
+**前置条件**：
+- Visual Studio 2019+ 或 Visual Studio Build Tools（需包含"使用 C++ 的桌面开发"工作负载）
+- CMake 3.10+（Visual Studio 自带或单独安装）
+- Git（用于初始化子模块）
+
+```bash
+# 克隆代码库并初始化子模块
+git clone --recurse-submodules https://git.woa.com/tglog/v3/sdk-c.git
+cd sdk-c
+
+# 使用 CMake 生成 Visual Studio 工程
+mkdir out
+cd out
+cmake ..
+
+# 命令行构建（Debug 版本）
+cmake --build . --config Debug
+
+# 命令行构建（Release 版本）
+cmake --build . --config Release
+
+# 安装到 dist 目录
+cmake --install . --config Release
+```
+
+**使用 Visual Studio IDE**：
+```bash
+# 生成 VS 解决方案后，直接用 VS 打开
+cmake ..
+start sdk_c.sln
+```
+
+或直接用 Visual Studio 的"打开文件夹"功能打开项目根目录，VS 会自动识别 `CMakeLists.txt`。
+
+**Windows 构建说明**：
+- Windows 下通过 `add_subdirectory` 方式构建 libevent，无需手动安装
+- 不依赖 ConcurrencyKit 和 jemalloc，使用系统默认内存分配器
+- 构建产物包括多线程版本 (tglog) 和单线程版本 (tglog-st) 的静态库和动态库
+- 多线程版本在 Windows 下使用 Windows 原生线程 API 替代 pthread
+- 需要链接 `ws2_32`（Windows Sockets）系统库
 
 ### C语言基本使用
 
@@ -248,6 +292,25 @@ gcc your_program.c -o your_program \
 ```
 
 > **注意**: jemalloc必须由最终的可执行程序链接，而不是由TGLog库链接。这样可以避免版本冲突。
+
+**Windows (MSVC) 链接**：
+
+```bash
+# 多线程版本
+cl your_program.c /I path\to\sdk-c\dist\include ^
+    /link path\to\sdk-c\dist\lib\tglog.lib ^
+    path\to\sdk-c\thirdparty\event\lib\event_core.lib ^
+    path\to\sdk-c\thirdparty\event\lib\event_pthreads.lib ^
+    ws2_32.lib
+
+# 单线程版本
+cl your_program.c /I path\to\sdk-c\dist\include ^
+    /link path\to\sdk-c\dist\lib\tglog-st.lib ^
+    path\to\sdk-c\thirdparty\event\lib\event_core.lib ^
+    ws2_32.lib
+```
+
+> **注意**: Windows 下不需要链接 jemalloc 和 pthread，使用系统默认内存分配器和线程库。
 
 ### Python使用示例
 
@@ -652,6 +715,7 @@ conf->max_pending_messages = 1024;
 | 集成复杂度 | 创建即用 | 需要主循环集成 |
 | 适用场景 | 高吞吐量、多线程应用 | 游戏服务器、单线程应用 |
 | 线程安全 | 完全线程安全 | 不需要（单线程） |
+| 平台支持 | Linux, **Windows** | Linux, **Windows** |
 
 ## 📚 API参考
 

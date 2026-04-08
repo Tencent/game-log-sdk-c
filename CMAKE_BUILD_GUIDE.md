@@ -358,11 +358,109 @@ make && make install
 | 配置方式 | 直接编译 | 需要先配置 |
 | 构建目录 | 源码目录 | 独立构建目录 |
 | IDE 支持 | 有限 | 完整（生成 compile_commands.json） |
-| 跨平台 | 需要手动适配 | 自动适配 |
+| 跨平台 | Linux | Linux/Windows |
+| Windows 支持 | 不支持 | 完整支持（MSVC） |
 | 语言绑定 | 完整支持 | 需要使用 Makefile |
-| 推荐场景 | 快速构建、生产环境 | IDE 开发、调试 |
+| 推荐场景 | 快速构建、生产环境 | IDE 开发、调试、Windows 构建 |
+
+## Windows 构建 (MSVC)
+
+Windows 平台使用 CMake + MSVC 构建，是 Windows 下的推荐方式。
+
+### 前置条件
+
+- **Visual Studio 2019+** 或 Visual Studio Build Tools（需包含"使用 C++ 的桌面开发"工作负载）
+- **CMake 3.10+**（Visual Studio 自带或单独安装）
+- **Git**（用于初始化子模块）
+
+### 命令行构建
+
+在 **Developer Command Prompt** 或 **Developer PowerShell** 中执行：
+
+```bash
+# 克隆代码库
+git clone --recurse-submodules https://git.woa.com/tglog/v3/sdk-c.git
+cd sdk-c
+
+# 生成 Visual Studio 工程
+mkdir out
+cd out
+cmake ..
+
+# 构建（Debug 版本）
+cmake --build . --config Debug
+
+# 构建（Release 版本）
+cmake --build . --config Release
+
+# 安装到 dist 目录
+cmake --install . --config Release
+```
+
+### Visual Studio IDE
+
+**方式一：打开生成的解决方案**
+```bash
+cd out
+cmake ..
+start sdk_c.sln
+```
+
+**方式二：直接打开文件夹**
+使用 Visual Studio 的"打开文件夹"功能打开项目根目录，VS 会自动识别 `CMakeLists.txt` 并配置项目。
+
+### Windows 平台差异
+
+| 特性 | Linux | Windows |
+|------|-------------|---------|
+| 构建工具 | Makefile 或 CMake | CMake + MSVC |
+| 多线程版本 (tglog) | 支持 | 支持 |
+| 单线程版本 (tglog-st) | 支持 | 支持 |
+| jemalloc | 支持 | 不支持（使用系统分配器） |
+| ConcurrencyKit | 支持 | 不支持 |
+| libevent | autotools 构建 | CMake add_subdirectory 构建 |
+| 系统库 | pthread, m | ws2_32 |
+| 库文件格式 | .a / .so | .lib / .dll |
+
+### 链接示例
+
+```bash
+# 多线程版本
+cl your_program.c /I path\to\sdk-c\dist\include ^
+    /link path\to\sdk-c\dist\lib\tglog.lib ^
+    path\to\sdk-c\thirdparty\event\lib\event_core.lib ^
+    path\to\sdk-c\thirdparty\event\lib\event_pthreads.lib ^
+    ws2_32.lib
+
+# 单线程版本
+cl your_program.c /I path\to\sdk-c\dist\include ^
+    /link path\to\sdk-c\dist\lib\tglog-st.lib ^
+    path\to\sdk-c\thirdparty\event\lib\event_core.lib ^
+    ws2_32.lib
+```
+
+### Windows 构建常见问题
+
+#### 找不到 libevent 头文件
+确保 CMake 配置步骤成功完成，libevent 会通过 `add_subdirectory` 自动构建。
+
+#### 链接错误：无法解析的外部符号
+检查是否正确链接了 `ws2_32.lib`，这是 Windows Sockets API 所需的系统库。
+
+#### DLL 加载失败
+确保 `tglog-st.dll` 和 libevent 的 DLL 在可执行程序的搜索路径中（同目录或 PATH 中）。
 
 ## IDE 集成
+
+### Visual Studio (Windows)
+
+Visual Studio 原生支持 CMake 项目：
+
+1. 打开 Visual Studio，选择"打开本地文件夹"
+2. 选择项目根目录（包含 `CMakeLists.txt`）
+3. VS 会自动配置 CMake 并生成项目
+4. 在解决方案资源管理器中切换 CMake 目标视图
+5. 选择 Debug/Release 配置并构建
 
 ### CLion
 
@@ -412,20 +510,10 @@ ninja deps
 ninja tglog tglog-st
 ```
 
-### 交叉编译
-
-```bash
-# 设置交叉编译工具链
-cmake -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
-      -DCMAKE_SYSTEM_NAME=Linux \
-      -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-      ..
-```
-
 ## 总结
 
-- **推荐使用 Makefile** 进行日常构建和生产环境部署
-- **推荐使用 CMake** 进行 IDE 开发和调试
-- 首次构建必须先执行 `make deps`
-- 语言绑定目前需要使用原 Makefile 构建
+- **Linux**：推荐使用 Makefile 进行日常构建和生产环境部署，CMake 适合 IDE 开发和调试
+- **Windows**：使用 CMake + MSVC 构建，支持多线程和单线程两个版本
+- 首次构建必须先执行 `make deps`（Linux）或确保 CMake 配置成功（Windows）
+- 语言绑定目前需要使用原 Makefile 构建（仅 Linux）
 - 使用独立的构建目录（out-of-source build）保持源码目录干净

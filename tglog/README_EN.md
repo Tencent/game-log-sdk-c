@@ -40,9 +40,9 @@ TGLog SDK is a C language client library designed for high-performance log trans
 - **pthread**: POSIX thread support
 
 ### Build Environment
-- **C Compiler**: C99 standard support (GCC 4.9+, Clang 3.9+)
-- **Operating System**: Linux, macOS, FreeBSD
-- **Architecture**: x86_64, ARM64
+- **C Compiler**: C99 standard support (GCC 4.9+, Clang 3.9+, MSVC 2019+)
+- **Operating System**: Linux, Windows
+- **Architecture**: x86_64
 
 ## 🚀 Quick Start
 

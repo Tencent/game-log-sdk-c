@@ -40,9 +40,9 @@ TGLog SDK 是一个专为高性能日志传输设计的C语言客户端库，目
 - **pthread**: POSIX线程支持
 
 ### 编译环境
-- **C编译器**: 支持C99标准 (GCC 4.9+, Clang 3.9+)
-- **操作系统**: Linux, macOS, FreeBSD
-- **架构**: x86_64, ARM64
+- **C编译器**: 支持C99标准 (GCC 4.9+, Clang 3.9+, MSVC 2019+)
+- **操作系统**: Linux, Windows
+- **架构**: x86_64
 
 ## 🚀 快速开始
 

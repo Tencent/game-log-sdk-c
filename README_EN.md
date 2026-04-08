@@ -10,7 +10,6 @@ TGLog SDK is a high-performance C logging client library designed for efficient 
 > Note: For Java support, please use the pure Java version [SDK](https://git.woa.com/tglog/v3/sdk-java)
 
 ## 📝 Known Limitations
-- Windows platform not supported (ConcurrencyKit limitation)
 - Single log messages cannot contain `\n` characters except at the end. If log field values need to include `\n` or `|`, these 2 characters must be escaped
 - UDP mode: single batch cannot exceed 65507 bytes
 - Due to historical reasons, the protocol is request-only with no response. Send success only indicates data was written to network buffer successfully, not guaranteed server receipt. Has send failure retry mechanism but no application-layer acknowledgment and retransmission
@@ -58,11 +57,11 @@ TGLog SDK is a high-performance C logging client library designed for efficient 
 > **Important Note**: TGLog library itself does not link jemalloc; it should be linked by the final executable or language binding. This avoids version conflicts and allows users to freely choose memory allocators.
 
 ### Build Environment
-- **C Compiler**: C99 standard support (GCC 4.9+, Clang 3.9+)
-- **Operating System**: Linux, macOS, FreeBSD
-- **Architecture**: x86_64, ARM64
+- **C Compiler**: C99 standard support (GCC 4.9+, Clang 3.9+, MSVC 2019+)
+- **Operating System**: Linux, Windows
+- **Architecture**: x86_64
 
-> Note: Windows platform not supported due to ConcurrencyKit not supporting compilation in Visual Studio.
+> Note: Windows platform uses CMake + MSVC for building. It does not depend on ConcurrencyKit or jemalloc. See [Windows Build](#method-3-windows-with-cmake--msvc) section below.
 
 ### Language Binding Requirements
 - **Python**: Python 3.6 or higher
@@ -151,6 +150,51 @@ make install
 - Recommended to use separate build directory (out-of-source build)
 - CMake generates `compile_commands.json` for IDE integration (CLion, VSCode, etc.)
 - Build behavior fully consistent with Makefile
+
+#### Method 3: Windows with CMake + MSVC
+
+Windows platform uses CMake as the build entry point, supporting Visual Studio 2019 and above.
+
+**Prerequisites**:
+- Visual Studio 2019+ or Visual Studio Build Tools (with "Desktop development with C++" workload)
+- CMake 3.10+ (included with Visual Studio or installed separately)
+- Git (for initializing submodules)
+
+```bash
+# Clone repository and initialize submodules
+git clone --recurse-submodules https://git.woa.com/tglog/v3/sdk-c.git
+cd sdk-c
+
+# Generate Visual Studio project with CMake
+mkdir out
+cd out
+cmake ..
+
+# Command-line build (Debug)
+cmake --build . --config Debug
+
+# Command-line build (Release)
+cmake --build . --config Release
+
+# Install to dist directory
+cmake --install . --config Release
+```
+
+**Using Visual Studio IDE**:
+```bash
+# After generating VS solution, open it directly
+cmake ..
+start sdk_c.sln
+```
+
+Or use Visual Studio's "Open Folder" feature to open the project root directory; VS will automatically detect `CMakeLists.txt`.
+
+**Windows Build Notes**:
+- libevent is built via `add_subdirectory` on Windows, no manual installation required
+- Does not depend on ConcurrencyKit or jemalloc; uses the system default memory allocator
+- Build artifacts include both multi-threaded (tglog) and single-threaded (tglog-st) static and dynamic libraries
+- Multi-threaded version uses Windows native thread API instead of pthread on Windows
+- Requires linking `ws2_32` (Windows Sockets) system library
 
 ### Basic C Usage
 
@@ -249,6 +293,25 @@ gcc your_program.c -o your_program \
 ```
 
 > **Note**: jemalloc must be linked by the final executable, not by TGLog library. This avoids version conflicts.
+
+**Windows (MSVC) Linking**:
+
+```bash
+# Multi-threaded version
+cl your_program.c /I path\to\sdk-c\dist\include ^
+    /link path\to\sdk-c\dist\lib\tglog.lib ^
+    path\to\sdk-c\thirdparty\event\lib\event_core.lib ^
+    path\to\sdk-c\thirdparty\event\lib\event_pthreads.lib ^
+    ws2_32.lib
+
+# Single-threaded version
+cl your_program.c /I path\to\sdk-c\dist\include ^
+    /link path\to\sdk-c\dist\lib\tglog-st.lib ^
+    path\to\sdk-c\thirdparty\event\lib\event_core.lib ^
+    ws2_32.lib
+```
+
+> **Note**: On Windows, jemalloc and pthread are not needed; the system default memory allocator and thread library are used.
 
 ### Python Usage Example
 
@@ -653,6 +716,7 @@ conf->max_pending_messages = 1024;
 | Integration Complexity | Create and use | Requires main loop integration |
 | Use Case | High throughput, multi-threaded apps | Game servers, single-threaded apps |
 | Thread Safety | Fully thread-safe | Not needed (single-thread) |
+| Platform Support | Linux, **Windows** | Linux, **Windows** |
 
 ## 📚 API Reference
 

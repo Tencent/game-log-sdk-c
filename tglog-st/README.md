@@ -47,9 +47,9 @@ TGLog SDK-ST 是专为单线程环境（如游戏服务器）设计的高性能�
 - **pthread**: POSIX线程支持（仅用于libevent内部）
 
 ### 编译环境
-- **C编译器**: 支持C99标准 (GCC 4.9+, Clang 3.9+)
-- **操作系统**: Linux, macOS, FreeBSD
-- **架构**: x86_64, ARM64
+- **C编译器**: 支持C99标准 (GCC 4.9+, Clang 3.9+, MSVC 2019+)
+- **操作系统**: Linux, Windows
+- **架构**: x86_64
 
 ## 🚀 快速开始
 

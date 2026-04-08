@@ -245,8 +245,8 @@
 
 **系统要求**
 - C99 标准编译器 (GCC 4.9+, Clang 3.9+)
-- Linux, macOS, FreeBSD
-- x86_64, ARM64 架构
+- Linux, Windows
+- x86_64 架构
 
 **性能指标**
 - 多线程版本: ~100万条/秒 (8 workers)
