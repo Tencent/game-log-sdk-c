@@ -3,9 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Windows compatibility layer (must come before POSIX headers) */
+/* Platform compatibility layer (must come before POSIX headers) */
 #ifdef _WIN32
-#include "win_compat.h"
+#include "tglog_platform.h"
 #else
 #include <getopt.h>
 #include <sys/time.h>

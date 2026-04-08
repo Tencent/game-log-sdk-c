@@ -81,3 +81,6 @@ test/Release
 test/Debug
 bindings/python/tglog_ext.cp314-win_amd64.pyd
 CMakeSettings.json
+*.exe
+*.ilk
+*.pdb
