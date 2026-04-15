@@ -1,7 +1,11 @@
 /*
- * tglog_atomic.h - Cross-platform atomic operations (C99)
+ * tglog_atomic.h - Cross-platform atomic operations with a C99-compatible API
  *
- * GCC/Clang: __sync_* builtins
+ * This header keeps the public interface usable from C99 code, but the
+ * implementation relies on compiler-specific atomic primitives rather than
+ * any C99 standard atomic facility.
+ *
+ * GCC/Clang: __atomic_* / __sync_* builtins
  * MSVC: _InterlockedXxx intrinsics
  */
 
@@ -29,12 +33,31 @@
 #define tglog_pause() ((void)0)
 #endif
 
+/* ======================================================================
+ * Cross-platform thread yield for back-off in spin loops
+ * ====================================================================== */
+
+#if defined(_MSC_VER)
+/* windows.h is included early so that SwitchToThread() is available
+ * for tglog_yield() below, and for the _Interlocked* intrinsics. */
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+/* SwitchToThread() is lighter than Sleep(0): it only yields to threads on
+ * the same processor, and returns immediately if there are none. */
+#define tglog_yield() SwitchToThread()
+#elif defined(__GNUC__) || defined(__clang__)
+#include <sched.h>
+#define tglog_yield() sched_yield()
+#else
+#define tglog_yield() ((void)0)
+#endif
+
 #if defined(_MSC_VER)
 /* ======================================================================
  * MSVC: _InterlockedXxx intrinsics
  * ====================================================================== */
-
-#include <windows.h>
 
 #pragma intrinsic(_InterlockedExchange)
 #pragma intrinsic(_InterlockedCompareExchange)
@@ -90,9 +113,14 @@ static __forceinline void tglog_atomic_store_64(uint64_t *p, uint64_t v) {
     _InterlockedExchange64((volatile __int64 *)p, (__int64)v);
 }
 
-/* 64-bit atomic load (relaxed, but guaranteed atomic on x86-64) */
+/* 64-bit atomic load (acquire semantics).
+ * On x86-64, aligned 64-bit loads are naturally atomic; volatile read +
+ * compiler barrier is sufficient and avoids the write side-effect of
+ * _InterlockedOr64, which would break on truly const/read-only memory. */
 static __forceinline uint64_t tglog_atomic_load_64(const uint64_t *p) {
-    return (uint64_t)_InterlockedOr64((volatile __int64 *)p, 0);
+    uint64_t v = *((volatile uint64_t *)p);
+    _ReadBarrier();
+    return v;
 }
 
 /* unsigned int atomic load (acquire semantics) */
@@ -147,105 +175,113 @@ static __forceinline int tglog_atomic_cas_ptr_value(void *volatile *p, void *exp
 
 #elif defined(__GNUC__) || defined(__clang__)
 /* ======================================================================
- * GCC/Clang: __sync_* builtins (C99 compatible)
+ * GCC/Clang: __sync_* / __atomic_* builtins
+ * These are compiler extensions used to provide a C99-compatible API.
  * ====================================================================== */
 
 /* 32-bit atomic load (acquire semantics) */
 static inline uint32_t tglog_atomic_load_32(const uint32_t *p) {
-    uint32_t v = *(volatile uint32_t *)p;
-    __sync_synchronize();
-    return v;
+    return __atomic_load_n(p, __ATOMIC_ACQUIRE);
 }
 
 /* 32-bit atomic store (release semantics) */
 static inline void tglog_atomic_store_32(uint32_t *p, uint32_t v) {
-    __sync_synchronize();
-    *(volatile uint32_t *)p = v;
+    __atomic_store_n(p, v, __ATOMIC_RELEASE);
 }
 
 /* 32-bit atomic CAS, returns 1 on success */
 static inline int tglog_atomic_cas_32(uint32_t *p, uint32_t expected, uint32_t desired) {
-    return __sync_bool_compare_and_swap(p, expected, desired);
+    return __atomic_compare_exchange_n(p, &expected, desired, 0,
+                                       __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
 }
 
 /* 32-bit atomic add (no return value) */
 static inline void tglog_atomic_add_32(uint32_t *p, uint32_t v) {
-    __sync_fetch_and_add(p, v);
+    (void)__atomic_fetch_add(p, v, __ATOMIC_SEQ_CST);
 }
 
 /* 64-bit atomic fetch-and-add, returns old value */
 static inline uint64_t tglog_atomic_faa_64(uint64_t *p, uint64_t v) {
-    return __sync_fetch_and_add(p, v);
+    return __atomic_fetch_add(p, v, __ATOMIC_SEQ_CST);
 }
 
 /* 64-bit atomic increment */
 static inline void tglog_atomic_inc_64(uint64_t *p) {
-    __sync_fetch_and_add(p, (uint64_t)1);
+    (void)__atomic_fetch_add(p, (uint64_t)1, __ATOMIC_SEQ_CST);
 }
 
 /* 64-bit atomic add (no return value) */
 static inline void tglog_atomic_add_64(uint64_t *p, uint64_t v) {
-    __sync_fetch_and_add(p, v);
+    (void)__atomic_fetch_add(p, v, __ATOMIC_SEQ_CST);
 }
 
-/* 64-bit atomic store */
+/* 64-bit atomic store (release semantics)
+ * On 32-bit platforms a plain 64-bit write is NOT atomic (two 32-bit MOVs),
+ * so we use a CAS loop to guarantee atomicity without requiring libatomic. */
 static inline void tglog_atomic_store_64(uint64_t *p, uint64_t v) {
-    __sync_synchronize();
-    *(volatile uint64_t *)p = v;
+#if __SIZEOF_POINTER__ == 4
+    /* 32-bit: CAS loop to avoid tearing */
+    uint64_t old = __sync_val_compare_and_swap(p, 0, 0); /* atomic read */
+    while (!__sync_bool_compare_and_swap(p, old, v)) {
+        old = __sync_val_compare_and_swap(p, 0, 0);
+    }
+#else
+    __atomic_store_n(p, v, __ATOMIC_RELEASE);
+#endif
 }
 
-/* 64-bit atomic load */
+/* 64-bit atomic load (acquire semantics).
+ * Use __atomic_load_n to avoid the RMW side effects of fetch-and-add(0)
+ * and preserve const-correctness for the source pointer. */
 static inline uint64_t tglog_atomic_load_64(const uint64_t *p) {
-    return __sync_fetch_and_add((uint64_t *)(uintptr_t)p, (uint64_t)0);
+    return __atomic_load_n(p, __ATOMIC_ACQUIRE);
 }
 
-/* unsigned int atomic load */
+/* unsigned int atomic load (acquire semantics) */
 static inline unsigned int tglog_atomic_load_uint(const unsigned int *p) {
-    unsigned int v = *(volatile unsigned int *)p;
-    __sync_synchronize();
-    return v;
+    return __atomic_load_n(p, __ATOMIC_ACQUIRE);
 }
 
-/* unsigned int atomic store */
+/* unsigned int atomic store (release semantics) */
 static inline void tglog_atomic_store_uint(unsigned int *p, unsigned int v) {
-    __sync_synchronize();
-    *(volatile unsigned int *)p = v;
+    __atomic_store_n(p, v, __ATOMIC_RELEASE);
 }
 
 /* unsigned int atomic CAS, returns 1 on success */
 static inline int tglog_atomic_cas_uint(unsigned int *p, unsigned int expected, unsigned int desired) {
-    return __sync_bool_compare_and_swap(p, expected, desired);
+    return __atomic_compare_exchange_n(p, &expected, desired, 0,
+                                       __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
 }
 
-/* Pointer atomic load */
+/* Pointer atomic load (acquire semantics) */
 static inline void *tglog_atomic_load_ptr(void *volatile *p) {
-    void *v = *(void *volatile *)p;
-    __sync_synchronize();
-    return v;
+    return __atomic_load_n(p, __ATOMIC_ACQUIRE);
 }
 
-/* Pointer atomic store */
+/* Pointer atomic store (release semantics) */
 static inline void tglog_atomic_store_ptr(void *volatile *p, void *v) {
-    __sync_synchronize();
-    *(void *volatile *)p = v;
+    __atomic_store_n(p, v, __ATOMIC_RELEASE);
 }
 
 /* Pointer atomic CAS, returns 1 on success */
 static inline int tglog_atomic_cas_ptr(void *volatile *p, void *expected, void *desired) {
-    return __sync_bool_compare_and_swap(p, expected, desired);
+    return __atomic_compare_exchange_n(p, &expected, desired, 0,
+                                       __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
 }
 
 /* Pointer atomic CAS with value output, returns 1 on success */
 static inline int tglog_atomic_cas_ptr_value(void *volatile *p, void *expected, void *desired, void **old) {
-    void *prev = __sync_val_compare_and_swap(p, expected, desired);
+    void *prev = expected;
+    int success = __atomic_compare_exchange_n(p, &prev, desired, 0,
+                                              __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
     *old = prev;
-    return prev == expected;
+    return success;
 }
 
 /* Memory barriers */
-#define tglog_fence_store()   __sync_synchronize()
-#define tglog_fence_load()    __sync_synchronize()
-#define tglog_fence_memory()  __sync_synchronize()
+#define tglog_fence_store()   __atomic_thread_fence(__ATOMIC_RELEASE)
+#define tglog_fence_load()    __atomic_thread_fence(__ATOMIC_ACQUIRE)
+#define tglog_fence_memory()  __atomic_thread_fence(__ATOMIC_SEQ_CST)
 
 #else
 #error "Unsupported compiler: need GCC/Clang __sync builtins or MSVC intrinsics"

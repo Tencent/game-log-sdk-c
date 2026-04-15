@@ -128,7 +128,7 @@ ssize_t tglog_conn_send_with_bufferevent(tglog_conn *conn, const void *data, siz
     }
 
     int sock_err = evutil_socket_geterror(conn->fd);
-    bool eagain = sock_err == EAGAIN || sock_err == EWOULDBLOCK;
+    bool eagain = TGLOG_ERR_IS_EAGAIN(sock_err);
     if (eagain) {
         tglog_worker_on_conn_eagain(conn->worker);
     }

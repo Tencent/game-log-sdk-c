@@ -1,5 +1,10 @@
 /*
- * tglog_stack.h - Cross-platform lock-free stack (C99, header-only)
+ * tglog_stack.h - Cross-platform lock-free stack with a C99-compatible API
+ *
+ * This header is header-only and keeps the public interface usable from C99
+ * code, but its concurrent semantics rely on tglog_atomic.h, which is backed
+ * by compiler-specific atomic primitives rather than any C99 standard atomic
+ * facility.
  *
  * Supports:
  * - MPMC (multi-producer, multi-consumer) with ABA protection
@@ -229,6 +234,21 @@ static inline void tglog_stack_push_mpmc(struct tglog_stack *target,
 /*
  * MPMC pop: double-width CAS with generation counter for ABA protection.
  * Returns NULL if stack is empty.
+ *
+ * IMPORTANT — memory reclamation constraint:
+ * Between loading `head` and the successful CAS, another thread may pop the
+ * same node and free it.  The dereference `head->next` would then be a
+ * use-after-free.  The generation counter prevents the CAS from succeeding on
+ * a recycled pointer (ABA), but it does NOT prevent the speculative read of
+ * freed memory.
+ *
+ * This is safe ONLY when popped nodes are returned to a memory pool (or arena)
+ * whose backing memory is never unmapped / returned to the OS.  In that case
+ * the read of `head->next` may fetch stale data, but cannot fault; the CAS
+ * will simply fail and retry with a fresh snapshot.
+ *
+ * Do NOT use standard free() on nodes that may still be referenced by
+ * concurrent pop operations — doing so risks a segfault.
  */
 static inline struct tglog_stack_entry *tglog_stack_pop_mpmc(struct tglog_stack *target) {
     struct tglog_stack_entry *head;

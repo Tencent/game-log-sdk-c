@@ -128,7 +128,7 @@ ssize_t tglog_conn_send_with_bufferevent(tglog_conn *conn, const void *data, siz
     }
 
     int sock_err = evutil_socket_geterror(conn->fd);
-    bool eagain = sock_err == EAGAIN || sock_err == EWOULDBLOCK;
+    bool eagain = TGLOG_ERR_IS_EAGAIN(sock_err);
     if (eagain) {
         tglog_worker_on_conn_eagain(conn->worker);
     }
@@ -193,7 +193,7 @@ ssize_t tglog_conn_sendv_with_bufferevent(tglog_conn *conn, const struct iovec *
     ssize_t sent = writev(conn->fd, iov, iovcnt);
     if (sent < 0) {
         int sock_err = evutil_socket_geterror(conn->fd);
-        eagain = sock_err == EAGAIN || sock_err == EWOULDBLOCK;
+        eagain = TGLOG_ERR_IS_EAGAIN(sock_err);
         tglog_error(conn->worker->logger, "writev failed: %s", tglog_socket_error_str(0));
     }
 

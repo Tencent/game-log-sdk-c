@@ -1,5 +1,10 @@
 /*
- * tglog_ring.h - Cross-platform ring buffer (C99, header-only)
+ * tglog_ring.h - Cross-platform ring buffer with a C99-compatible API
+ *
+ * This header is header-only and keeps the public interface usable from C99
+ * code, but its concurrent semantics rely on tglog_atomic.h, which is backed
+ * by compiler-specific atomic primitives rather than any C99 standard atomic
+ * facility.
  *
  * Supports SPSC (single producer, single consumer) and
  * MPSC (multi-producer, single consumer) modes.
@@ -12,6 +17,7 @@
 #define TGLOG_RING_H
 
 #include <string.h>
+#include <assert.h>
 
 #include "tglog_atomic.h"
 
@@ -62,6 +68,7 @@ typedef struct tglog_ring_buffer tglog_ring_buffer_t;
  * @param size  The capacity (MUST be a power of 2).
  */
 static inline void tglog_ring_init(struct tglog_ring *ring, unsigned int size) {
+    assert(size >= 2 && (size & (size - 1)) == 0 && "size must be a power of 2");
     ring->size = size;
     ring->mask = size - 1;
     ring->p_tail = 0;
@@ -133,6 +140,16 @@ static inline int _tglog_ring_dequeue_sc(struct tglog_ring *ring,
     return 1;
 }
 
+/*
+ * Maximum number of pause-spins before yielding the CPU in MPSC commit loop.
+ * If a preceding producer is preempted after reserving a slot but before
+ * committing p_tail, all later producers (and the consumer) are blocked.
+ * We spin briefly, then yield to give the stalled producer a chance to run.
+ */
+#ifndef TGLOG_RING_SPIN_LIMIT
+#define TGLOG_RING_SPIN_LIMIT 1024
+#endif
+
 /* Multi-producer enqueue (used by MPSC and MPMC). */
 static inline int _tglog_ring_enqueue_mp(struct tglog_ring *ring,
     void *buffer, const void *entry, unsigned int ts, unsigned int *size) {
@@ -181,9 +198,21 @@ static inline int _tglog_ring_enqueue_mp(struct tglog_ring *ring,
     /*
      * Wait until all previous producers have committed.
      * This ensures p_tail advances in order.
+     *
+     * Back-off strategy: spin with pause for TGLOG_RING_SPIN_LIMIT iterations,
+     * then yield the CPU so a preempted predecessor can make progress.
      */
-    while (tglog_atomic_load_uint(&ring->p_tail) != producer)
-        tglog_pause();
+    {
+        unsigned int spin_count = 0;
+        while (tglog_atomic_load_uint(&ring->p_tail) != producer) {
+            if (TGLOG_CC_LIKELY(spin_count < TGLOG_RING_SPIN_LIMIT)) {
+                tglog_pause();
+                spin_count++;
+            } else {
+                tglog_yield();
+            }
+        }
+    }
 
     /* Ensure data is visible before updating p_tail. */
     tglog_fence_store();

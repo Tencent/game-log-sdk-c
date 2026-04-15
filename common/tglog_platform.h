@@ -20,7 +20,7 @@
     #define TGLOG_THREAD_LOCAL __thread
 #else
     #define TGLOG_INLINE       static inline
-    #define TGLOG_THREAD_LOCAL _Thread_local  /* C11 fallback */
+    #define TGLOG_THREAD_LOCAL _Thread_local  /* C11 fallback; unreachable for MSVC/GCC/Clang */
 #endif
 
 #ifdef _WIN32
@@ -34,6 +34,7 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 #include <BaseTsd.h>
+#include <intrin.h>
 #include <time.h>
 #include <stdint.h>
 #include <malloc.h>
@@ -88,7 +89,10 @@ TGLOG_INLINE ssize_t writev(evutil_socket_t fd, const struct iovec *iov, int iov
 /* === gettimeofday ===
  * Prefer GetSystemTimePreciseAsFileTime when available. On older Windows,
  * fall back to a QueryPerformanceCounter-based wall clock calibrated against
- * GetSystemTimeAsFileTime to provide microsecond-resolution timestamps. */
+ * GetSystemTimeAsFileTime to provide microsecond-resolution timestamps.
+ *
+ * Thread safety: both tglog_win_qpc_time_us() and gettimeofday() use
+ * InitOnceExecuteOnce to guarantee one-shot initialisation without races. */
 typedef VOID (WINAPI *tglog_get_system_time_precise_as_file_time_fn)(LPFILETIME);
 
 TGLOG_INLINE uint64_t tglog_win_filetime_to_epoch_us(const FILETIME *ft) {
@@ -97,42 +101,64 @@ TGLOG_INLINE uint64_t tglog_win_filetime_to_epoch_us(const FILETIME *ft) {
     return t / 10ULL;
 }
 
+/* --- QPC fallback: thread-safe one-shot calibration --- */
+typedef struct {
+    LARGE_INTEGER freq;
+    LARGE_INTEGER start_counter;
+    uint64_t      start_epoch_us;
+} _tglog_qpc_state_t;
+
+static _tglog_qpc_state_t _tglog_qpc_state;
+static INIT_ONCE           _tglog_qpc_once = INIT_ONCE_STATIC_INIT;
+
+static BOOL CALLBACK _tglog_qpc_init_once(PINIT_ONCE once, PVOID param, PVOID *ctx) {
+    FILETIME ft;
+    _tglog_qpc_state_t *s = (_tglog_qpc_state_t *)param;
+    (void)once; (void)ctx;
+    QueryPerformanceFrequency(&s->freq);
+    QueryPerformanceCounter(&s->start_counter);
+    GetSystemTimeAsFileTime(&ft);
+    s->start_epoch_us = tglog_win_filetime_to_epoch_us(&ft);
+    return TRUE;
+}
+
 TGLOG_INLINE uint64_t tglog_win_qpc_time_us(void) {
-    static LARGE_INTEGER freq = {0};
-    static LARGE_INTEGER start_counter = {0};
-    static uint64_t start_epoch_us = 0;
     LARGE_INTEGER now;
 
-    if (freq.QuadPart == 0) {
-        FILETIME ft;
-        QueryPerformanceFrequency(&freq);
-        QueryPerformanceCounter(&start_counter);
-        GetSystemTimeAsFileTime(&ft);
-        start_epoch_us = tglog_win_filetime_to_epoch_us(&ft);
-    }
+    InitOnceExecuteOnce(&_tglog_qpc_once, _tglog_qpc_init_once,
+                        &_tglog_qpc_state, NULL);
 
     QueryPerformanceCounter(&now);
-    return start_epoch_us + (uint64_t)((now.QuadPart - start_counter.QuadPart) * 1000000ULL / freq.QuadPart);
+    return _tglog_qpc_state.start_epoch_us +
+        (uint64_t)((now.QuadPart - _tglog_qpc_state.start_counter.QuadPart)
+                    * 1000000ULL / _tglog_qpc_state.freq.QuadPart);
+}
+
+/* --- gettimeofday: thread-safe precise-timer probe --- */
+static tglog_get_system_time_precise_as_file_time_fn _tglog_precise_time_fn;
+static INIT_ONCE _tglog_gtod_once = INIT_ONCE_STATIC_INIT;
+
+static BOOL CALLBACK _tglog_gtod_init_once(PINIT_ONCE once, PVOID param, PVOID *ctx) {
+    HMODULE kernel32;
+    (void)once; (void)param; (void)ctx;
+    kernel32 = GetModuleHandleA("kernel32.dll");
+    if (kernel32 != NULL) {
+        _tglog_precise_time_fn =
+            (tglog_get_system_time_precise_as_file_time_fn)
+                GetProcAddress(kernel32, "GetSystemTimePreciseAsFileTime");
+    }
+    return TRUE;
 }
 
 TGLOG_INLINE int gettimeofday(struct timeval *tv, void *tz) {
+    uint64_t epoch_us;
     (void)tz;
 
-    static tglog_get_system_time_precise_as_file_time_fn precise_time_fn = NULL;
-    static int precise_time_checked = 0;
-    uint64_t epoch_us;
+    InitOnceExecuteOnce(&_tglog_gtod_once, _tglog_gtod_init_once, NULL, NULL);
 
-    if (!precise_time_checked) {
-        HMODULE kernel32 = GetModuleHandleA("kernel32.dll");
-        if (kernel32 != NULL) {
-            precise_time_fn = (tglog_get_system_time_precise_as_file_time_fn)GetProcAddress(kernel32, "GetSystemTimePreciseAsFileTime");
-        }
-        precise_time_checked = 1;
-    }
-
-    if (precise_time_fn != NULL) {
+    if (_tglog_precise_time_fn != NULL) {
         FILETIME ft;
-        precise_time_fn(&ft);
+        _tglog_precise_time_fn(&ft);
         epoch_us = tglog_win_filetime_to_epoch_us(&ft);
     } else {
         epoch_us = tglog_win_qpc_time_us();
@@ -159,16 +185,18 @@ TGLOG_INLINE int rand_r(unsigned int *seed) {
 #define strdup _strdup
 #endif
 
-/* === errno compat for Winsock === */
-#ifndef EAGAIN
-#define EAGAIN       WSAEWOULDBLOCK
-#endif
-#ifndef EWOULDBLOCK
-#define EWOULDBLOCK  WSAEWOULDBLOCK
-#endif
-#ifndef ENOBUFS
-#define ENOBUFS      WSAENOBUFS
-#endif
+/* === Socket error classification for Winsock ===
+ * On Windows, socket errors come from WSAGetLastError() (e.g. WSAEWOULDBLOCK
+ * = 10035) while C <errno.h> defines EAGAIN=11 / EWOULDBLOCK=140.  The two
+ * numbering spaces do NOT overlap, so `sock_err == EAGAIN` never matches a
+ * Winsock error.  We provide macros that check BOTH value spaces so callers
+ * can keep writing `TGLOG_ERR_IS_EAGAIN(sock_err)` portably.
+ *
+ * NOTE: The old `#ifndef EAGAIN / #define EAGAIN WSAEWOULDBLOCK` guards were
+ * dead code because <errno.h> already defines EAGAIN on MSVC. */
+#define TGLOG_ERR_IS_EAGAIN(e)     ((e) == EAGAIN || (e) == EWOULDBLOCK || \
+                                    (e) == WSAEWOULDBLOCK)
+#define TGLOG_ERR_IS_ENOBUFS(e)    ((e) == ENOBUFS || (e) == WSAENOBUFS)
 
 /* === MSG_NOSIGNAL (no-op on Windows) === */
 #ifndef MSG_NOSIGNAL
@@ -209,6 +237,7 @@ TGLOG_INLINE void usleep(unsigned long usec) {
         QueryPerformanceCounter(&now);
         elapsed = (double)(now.QuadPart - start.QuadPart) * 1000000.0 / (double)freq.QuadPart;
         if (elapsed >= target_us) break;
+        _mm_pause();
     }
 }
 
@@ -355,6 +384,14 @@ typedef int bool;
 
 /* === Socket error helper (POSIX) === */
 #define tglog_socket_error_str(e) strerror((e) == 0 ? errno : (e))
+
+/* === Socket error classification (POSIX) === */
+#if EAGAIN == EWOULDBLOCK
+#define TGLOG_ERR_IS_EAGAIN(e)   ((e) == EAGAIN)
+#else
+#define TGLOG_ERR_IS_EAGAIN(e)   ((e) == EAGAIN || (e) == EWOULDBLOCK)
+#endif
+#define TGLOG_ERR_IS_ENOBUFS(e)  ((e) == ENOBUFS)
 
 #endif /* _WIN32 */
 #endif /* TGLOG_PLATFORM_H */

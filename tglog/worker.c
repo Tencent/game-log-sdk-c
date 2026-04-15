@@ -1232,7 +1232,7 @@ static int tglog_worker_send_batch_udp(tglog_worker *worker) {
         ssize_t bytes_sent = tglog_conn_sendv(conn, batch_iov, batch_iov_count);
         if (bytes_sent < 0) {
             int err = evutil_socket_geterror(conn->fd);
-            if (err == EAGAIN || err == EWOULDBLOCK) {
+            if (TGLOG_ERR_IS_EAGAIN(err)) {
                 tglog_metrics_inc_eagain_err_count(worker->metrics, worker->id, 1);
                 tglog_debug(worker->logger, "Send batch encounter EAGAIN or EWOULDBLOCK and will retry again, worker: %d, addr: %s, errno: %d", worker->id, conn->endpoint, err);
                 if (worker->conns->count > 1) {

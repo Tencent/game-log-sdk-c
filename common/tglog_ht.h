@@ -42,8 +42,8 @@ typedef struct tglog_ht_hash tglog_ht_hash_t;
 struct tglog_ht_entry {
     uintptr_t key;
     uintptr_t value;
-    uint16_t key_length;
     uint64_t hash;
+    uint16_t key_length;
     uint8_t state;
 };
 typedef struct tglog_ht_entry tglog_ht_entry_t;
