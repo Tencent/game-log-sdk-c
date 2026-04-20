@@ -31,6 +31,7 @@ set(SOURCES
         discoverer.c
         pool.c
         ${CMAKE_SOURCE_DIR}/common/tglog_ht.c
+        ${CMAKE_SOURCE_DIR}/common/tglog_platform.c
 )
 
 # 头文件

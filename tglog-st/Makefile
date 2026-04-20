@@ -61,7 +61,8 @@ SRCS = client.c \
        debug_logger.c \
        worker.c \
        discoverer.c \
-       $(COMMON_DIR)/common/tglog_ht.c
+       $(COMMON_DIR)/common/tglog_ht.c \
+       $(COMMON_DIR)/common/tglog_platform.c
 
 # Object files
 OBJS = $(SRCS:.c=.o)

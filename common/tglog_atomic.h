@@ -215,19 +215,15 @@ static inline void tglog_atomic_add_64(uint64_t *p, uint64_t v) {
     (void)__atomic_fetch_add(p, v, __ATOMIC_SEQ_CST);
 }
 
-/* 64-bit atomic store (release semantics)
- * On 32-bit platforms a plain 64-bit write is NOT atomic (two 32-bit MOVs),
- * so we use a CAS loop to guarantee atomicity without requiring libatomic. */
+/* 64-bit atomic store (release semantics).
+ * On x86-64: plain aligned 64-bit write is atomic; __atomic_store_n emits
+ * it directly.
+ * On 32-bit x86: GCC/Clang lower __atomic_store_n(uint64_t) to either
+ * SSE2 movq or a lock cmpxchg8b — both are atomic and don't require
+ * libatomic. The previous CAS-based read-then-swap loop burned a locked
+ * bus cycle on every call unnecessarily. */
 static inline void tglog_atomic_store_64(uint64_t *p, uint64_t v) {
-#if __SIZEOF_POINTER__ == 4
-    /* 32-bit: CAS loop to avoid tearing */
-    uint64_t old = __sync_val_compare_and_swap(p, 0, 0); /* atomic read */
-    while (!__sync_bool_compare_and_swap(p, old, v)) {
-        old = __sync_val_compare_and_swap(p, 0, 0);
-    }
-#else
     __atomic_store_n(p, v, __ATOMIC_RELEASE);
-#endif
 }
 
 /* 64-bit atomic load (acquire semantics).

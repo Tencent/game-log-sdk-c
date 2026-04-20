@@ -50,7 +50,9 @@ else
 endif
 
 # Source files (auto-detected + common)
-SRCS = $(wildcard *.c) $(COMMON_DIR)/common/tglog_ht.c
+SRCS = $(wildcard *.c) \
+       $(COMMON_DIR)/common/tglog_ht.c \
+       $(COMMON_DIR)/common/tglog_platform.c
 
 # Object files
 OBJS = $(SRCS:.c=.o)

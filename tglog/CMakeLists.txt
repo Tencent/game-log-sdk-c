@@ -7,6 +7,7 @@ set(EXECUTABLE2 ${CMAKE_SOURCE_DIR}/lib/libtglog.so)
 # 收集所有源文件
 file(GLOB SRCS "*.c")
 list(APPEND SRCS "${CMAKE_SOURCE_DIR}/common/tglog_ht.c")
+list(APPEND SRCS "${CMAKE_SOURCE_DIR}/common/tglog_platform.c")
 
 # 创建对象文件
 add_library(tglog_objs OBJECT ${SRCS})

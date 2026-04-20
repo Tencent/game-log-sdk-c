@@ -57,7 +57,12 @@ struct iovec {
  * TGLOG_IOV_MAX caps the maximum iovec count to bound stack allocation.
  * For iovcnt <= 16, a fixed stack buffer is used (fast path).
  * For 17..TGLOG_IOV_MAX, _alloca() is used — this is safe because
- * TGLOG_IOV_MAX * sizeof(WSABUF) = 128 * 16 = 2048 bytes max. */
+ * TGLOG_IOV_MAX * sizeof(WSABUF) = 128 * 16 = 2048 bytes max.
+ *
+ * NOTE: If iovcnt > TGLOG_IOV_MAX, we fail hard with EINVAL instead of
+ * silently truncating.  Silent truncation would produce corrupted log
+ * frames (especially dangerous in UDP mode where each writev is one
+ * datagram). */
 #define TGLOG_IOV_MAX 128
 
 TGLOG_INLINE ssize_t writev(evutil_socket_t fd, const struct iovec *iov, int iovcnt) {
@@ -65,7 +70,12 @@ TGLOG_INLINE ssize_t writev(evutil_socket_t fd, const struct iovec *iov, int iov
     WSABUF *wsa_buf;
 
     if (iovcnt <= 0) return 0;
-    if (iovcnt > TGLOG_IOV_MAX) iovcnt = TGLOG_IOV_MAX;
+    if (iovcnt > TGLOG_IOV_MAX) {
+        /* POSIX-style: refuse rather than truncate. */
+        WSASetLastError(WSAEINVAL);
+        errno = EINVAL;
+        return -1;
+    }
 
     if (iovcnt <= 16) {
         wsa_buf = stack_buf;
@@ -92,13 +102,24 @@ TGLOG_INLINE ssize_t writev(evutil_socket_t fd, const struct iovec *iov, int iov
  * GetSystemTimeAsFileTime to provide microsecond-resolution timestamps.
  *
  * Thread safety: both tglog_win_qpc_time_us() and gettimeofday() use
- * InitOnceExecuteOnce to guarantee one-shot initialisation without races. */
+ * InitOnceExecuteOnce to guarantee one-shot initialisation without races.
+ *
+ * NOTE: these process-global structures (_tglog_qpc_state, _tglog_gtod_once,
+ * _tglog_precise_time_fn, _tglog_qpc_once) are DEFINED in tglog_platform.c
+ * and only DECLARED here — declaring them `static` in a header would give
+ * each translation unit its own private copy and race-init them independently. */
 typedef VOID (WINAPI *tglog_get_system_time_precise_as_file_time_fn)(LPFILETIME);
 
 TGLOG_INLINE uint64_t tglog_win_filetime_to_epoch_us(const FILETIME *ft) {
     uint64_t t = ((uint64_t)ft->dwHighDateTime << 32) | ft->dwLowDateTime;
     t -= 116444736000000000ULL; /* Jan 1, 1601 -> Jan 1, 1970 */
     return t / 10ULL;
+}
+
+/* Safe (diff * 1e6 / freq) via muldiv; bare multiply overflows u64 at
+ * ~21 days when freq = 10 MHz (common on modern x86). */
+TGLOG_INLINE uint64_t tglog_win_qpc_ticks_to_us(uint64_t diff, uint64_t freq) {
+    return (diff / freq) * 1000000ULL + ((diff % freq) * 1000000ULL) / freq;
 }
 
 /* --- QPC fallback: thread-safe one-shot calibration --- */
@@ -108,19 +129,9 @@ typedef struct {
     uint64_t      start_epoch_us;
 } _tglog_qpc_state_t;
 
-static _tglog_qpc_state_t _tglog_qpc_state;
-static INIT_ONCE           _tglog_qpc_once = INIT_ONCE_STATIC_INIT;
-
-static BOOL CALLBACK _tglog_qpc_init_once(PINIT_ONCE once, PVOID param, PVOID *ctx) {
-    FILETIME ft;
-    _tglog_qpc_state_t *s = (_tglog_qpc_state_t *)param;
-    (void)once; (void)ctx;
-    QueryPerformanceFrequency(&s->freq);
-    QueryPerformanceCounter(&s->start_counter);
-    GetSystemTimeAsFileTime(&ft);
-    s->start_epoch_us = tglog_win_filetime_to_epoch_us(&ft);
-    return TRUE;
-}
+extern _tglog_qpc_state_t _tglog_qpc_state;
+extern INIT_ONCE          _tglog_qpc_once;
+BOOL CALLBACK _tglog_qpc_init_once(PINIT_ONCE once, PVOID param, PVOID *ctx);
 
 TGLOG_INLINE uint64_t tglog_win_qpc_time_us(void) {
     LARGE_INTEGER now;
@@ -129,26 +140,17 @@ TGLOG_INLINE uint64_t tglog_win_qpc_time_us(void) {
                         &_tglog_qpc_state, NULL);
 
     QueryPerformanceCounter(&now);
-    return _tglog_qpc_state.start_epoch_us +
-        (uint64_t)((now.QuadPart - _tglog_qpc_state.start_counter.QuadPart)
-                    * 1000000ULL / _tglog_qpc_state.freq.QuadPart);
+    {
+        uint64_t diff = (uint64_t)(now.QuadPart - _tglog_qpc_state.start_counter.QuadPart);
+        uint64_t freq = (uint64_t)_tglog_qpc_state.freq.QuadPart;
+        return _tglog_qpc_state.start_epoch_us + tglog_win_qpc_ticks_to_us(diff, freq);
+    }
 }
 
 /* --- gettimeofday: thread-safe precise-timer probe --- */
-static tglog_get_system_time_precise_as_file_time_fn _tglog_precise_time_fn;
-static INIT_ONCE _tglog_gtod_once = INIT_ONCE_STATIC_INIT;
-
-static BOOL CALLBACK _tglog_gtod_init_once(PINIT_ONCE once, PVOID param, PVOID *ctx) {
-    HMODULE kernel32;
-    (void)once; (void)param; (void)ctx;
-    kernel32 = GetModuleHandleA("kernel32.dll");
-    if (kernel32 != NULL) {
-        _tglog_precise_time_fn =
-            (tglog_get_system_time_precise_as_file_time_fn)
-                GetProcAddress(kernel32, "GetSystemTimePreciseAsFileTime");
-    }
-    return TRUE;
-}
+extern tglog_get_system_time_precise_as_file_time_fn _tglog_precise_time_fn;
+extern INIT_ONCE _tglog_gtod_once;
+BOOL CALLBACK _tglog_gtod_init_once(PINIT_ONCE once, PVOID param, PVOID *ctx);
 
 TGLOG_INLINE int gettimeofday(struct timeval *tv, void *tz) {
     uint64_t epoch_us;
@@ -214,16 +216,24 @@ TGLOG_INLINE const char *tglog_socket_error_str(int error) {
 /* === usleep (high-precision via QPC + Sleep hybrid) ===
  * For delays < 2ms: pure spin-wait using QueryPerformanceCounter (~sub-us accuracy).
  * For delays >= 2ms: Sleep() handles the bulk, spin-wait covers the remainder.
- * This avoids the ~15.6ms granularity of Sleep() without using timeBeginPeriod(). */
+ * This avoids the ~15.6ms granularity of Sleep() without using timeBeginPeriod().
+ *
+ * WARNING: sub-2ms precision comes at the cost of a 100%-CPU spin. Do not call
+ * this for long/frequent waits on many threads — prefer Sleep() directly there. */
 TGLOG_INLINE void usleep(unsigned long usec) {
     LARGE_INTEGER freq, start, now;
-    double target_us;
+    uint64_t target_ticks;
+    uint64_t elapsed_ticks;
 
     if (usec == 0) return;
 
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&start);
-    target_us = (double)usec;
+
+    /* target_ticks = usec * freq / 1e6, with overflow guard for huge usec.
+     * This is bounded: caller sends a small microsecond value. */
+    target_ticks = ((uint64_t)usec / 1000000ULL) * (uint64_t)freq.QuadPart
+                 + ((uint64_t)usec % 1000000ULL) * (uint64_t)freq.QuadPart / 1000000ULL;
 
     if (usec >= 2000) {
         /* Sleep the bulk, leaving 1.5ms margin for spin-wait to refine */
@@ -233,10 +243,9 @@ TGLOG_INLINE void usleep(unsigned long usec) {
 
     /* Spin-wait the remaining time with QPC precision */
     for (;;) {
-        double elapsed;
         QueryPerformanceCounter(&now);
-        elapsed = (double)(now.QuadPart - start.QuadPart) * 1000000.0 / (double)freq.QuadPart;
-        if (elapsed >= target_us) break;
+        elapsed_ticks = (uint64_t)(now.QuadPart - start.QuadPart);
+        if (elapsed_ticks >= target_ticks) break;
         _mm_pause();
     }
 }
@@ -247,7 +256,13 @@ TGLOG_INLINE unsigned int sleep(unsigned int seconds) {
     return 0;
 }
 
-/* === getopt / getopt_long === */
+/* === getopt / getopt_long ===
+ *
+ * NOTE: optarg/optind/opterr/optopt are process-global in POSIX. The
+ * storage and function bodies live in tglog_platform.c. Declaring them
+ * `static` in this header (the previous design) gave each translation
+ * unit its own copy, so any TU that called getopt() couldn't see the
+ * state another TU updated — a silent correctness bug. */
 #ifndef no_argument
 #define no_argument       0
 #define required_argument 1
@@ -261,110 +276,14 @@ struct option {
     int         val;
 };
 
-static char *optarg = NULL;
-static int   optind = 1;
-static int   opterr = 1;
-static int   optopt = '?';
+extern char *optarg;
+extern int   optind;
+extern int   opterr;
+extern int   optopt;
 
-TGLOG_INLINE int getopt(int argc, char *const argv[], const char *optstring) {
-    static int sp = 1;
-    int c;
-    const char *cp;
-
-    if (sp == 1) {
-        if (optind >= argc || argv[optind][0] != '-' || argv[optind][1] == '\0')
-            return -1;
-        if (strcmp(argv[optind], "--") == 0) {
-            optind++;
-            return -1;
-        }
-    }
-
-    c = argv[optind][sp];
-    cp = strchr(optstring, c);
-    if (cp == NULL || c == ':') {
-        if (opterr)
-            fprintf(stderr, "%s: illegal option -- %c\n", argv[0], c);
-        optopt = c;
-        if (argv[optind][++sp] == '\0') {
-            optind++;
-            sp = 1;
-        }
-        return '?';
-    }
-
-    if (cp[1] == ':') {
-        if (argv[optind][sp+1] != '\0') {
-            optarg = &argv[optind++][sp+1];
-        } else if (++optind >= argc) {
-            if (opterr)
-                fprintf(stderr, "%s: option requires an argument -- %c\n", argv[0], c);
-            optopt = c;
-            sp = 1;
-            return '?';
-        } else {
-            optarg = argv[optind++];
-        }
-        sp = 1;
-    } else {
-        if (argv[optind][++sp] == '\0') {
-            sp = 1;
-            optind++;
-        }
-        optarg = NULL;
-    }
-
-    return c;
-}
-
-TGLOG_INLINE int getopt_long(int argc, char *const argv[], const char *optstring,
-                              const struct option *longopts, int *longindex) {
-    /* Check for long option first */
-    if (optind < argc && argv[optind][0] == '-' && argv[optind][1] == '-' &&
-        argv[optind][2] != '\0') {
-        const char *name = argv[optind] + 2;
-        int i;
-        for (i = 0; longopts[i].name != NULL; i++) {
-            size_t namelen = strlen(longopts[i].name);
-            if (strncmp(name, longopts[i].name, namelen) == 0) {
-                int match = 0;
-                if (name[namelen] == '\0') {
-                    match = 1;
-                    optarg = NULL;
-                } else if (name[namelen] == '=' && longopts[i].has_arg) {
-                    match = 1;
-                    optarg = (char *)(name + namelen + 1);
-                }
-                if (match) {
-                    if (longindex)
-                        *longindex = i;
-                    optind++;
-                    if (longopts[i].has_arg == required_argument && optarg == NULL) {
-                        if (optind >= argc) {
-                            if (opterr)
-                                fprintf(stderr, "%s: option '--%s' requires an argument\n",
-                                        argv[0], longopts[i].name);
-                            return '?';
-                        }
-                        optarg = argv[optind++];
-                    }
-                    if (longopts[i].flag) {
-                        *longopts[i].flag = longopts[i].val;
-                        return 0;
-                    }
-                    return longopts[i].val;
-                }
-            }
-        }
-        /* unrecognised long option */
-        if (opterr)
-            fprintf(stderr, "%s: unrecognised option '--%s'\n", argv[0], name);
-        optind++;
-        return '?';
-    }
-
-    return getopt(argc, argv, optstring);
-}
+int getopt(int argc, char *const argv[], const char *optstring);
+int getopt_long(int argc, char *const argv[], const char *optstring,
+                const struct option *longopts, int *longindex);
 
 /* === bool / true / false (C99 compat when <stdbool.h> unavailable) === */
 #ifndef __cplusplus

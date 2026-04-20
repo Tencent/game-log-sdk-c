@@ -42,18 +42,37 @@
 /*
  * Concurrent ring buffer structure.
  *
- * c_head and p_tail/p_head are on separate cache lines to minimize
- * false sharing between producer and consumer.
+ * Each counter lives on its own cache line to minimise false sharing:
+ *   - c_head is written by the consumer, read by producers (full-check)
+ *   - p_head is written by producers (CAS in MP enqueue), read by consumer
+ *           in dequeue only indirectly via p_tail
+ *   - p_tail is written by producers at commit, read by the consumer on
+ *           every dequeue and by producers to serialise in-order commit
+ *
+ * If p_head and p_tail share a line, every CAS on p_head invalidates the
+ * consumer's cached copy of p_tail (and vice versa) even though p_tail
+ * itself has not changed. Three separate lines eliminate that contention.
+ *
+ * The struct itself is aligned to a cache line so that embedding it in
+ * another structure does not misalign the padded layout.
  */
+#if defined(_MSC_VER)
+__declspec(align(TGLOG_CACHELINE))
+#endif
 struct tglog_ring {
     unsigned int c_head;
     char pad1[TGLOG_CACHELINE - sizeof(unsigned int)];
     unsigned int p_tail;
+    char pad2[TGLOG_CACHELINE - sizeof(unsigned int)];
     unsigned int p_head;
-    char pad2[TGLOG_CACHELINE - sizeof(unsigned int) * 2];
+    char pad3[TGLOG_CACHELINE - sizeof(unsigned int)];
     unsigned int size;
     unsigned int mask;
-};
+}
+#if (defined(__GNUC__) || defined(__clang__))
+__attribute__((aligned(TGLOG_CACHELINE)))
+#endif
+;
 typedef struct tglog_ring tglog_ring_t;
 
 /* Ring buffer element wrapper (for pointer-based API) */
