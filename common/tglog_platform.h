@@ -43,6 +43,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "event2/util.h"  /* for evutil_socket_t */
+#include "tglog_atomic.h" /* for tglog_pause() used in usleep() spin-wait */
 
 /* === ssize_t === */
 typedef SSIZE_T ssize_t;
