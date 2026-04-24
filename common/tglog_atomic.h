@@ -5,7 +5,7 @@
  * implementation relies on compiler-specific atomic primitives rather than
  * any C99 standard atomic facility.
  *
- * GCC/Clang: __atomic_* / __sync_* builtins
+ * GCC/Clang: __atomic_* builtins
  * MSVC: _InterlockedXxx intrinsics
  */
 
@@ -20,7 +20,11 @@
 
 #if defined(_MSC_VER)
 #include <intrin.h>
+#if defined(_M_ARM64) || defined(_M_ARM)
+#define tglog_pause() __yield()
+#else
 #define tglog_pause() _mm_pause()
+#endif
 #elif defined(__GNUC__) || defined(__clang__)
 #if defined(__x86_64__) || defined(__i386__)
 #define tglog_pause() __builtin_ia32_pause()
@@ -57,6 +61,15 @@
 #if defined(_MSC_VER)
 /* ======================================================================
  * MSVC: _InterlockedXxx intrinsics
+ *
+ * On x86/x64, the hardware provides Total Store Ordering (TSO), so
+ * volatile reads/writes + compiler barriers (_ReadBarrier/_WriteBarrier)
+ * are sufficient for acquire/release semantics.
+ *
+ * On ARM/ARM64, the memory model is weak — compiler barriers alone do NOT
+ * emit hardware barrier instructions (dmb/ldar/stlr). We must use
+ * _Interlocked* intrinsics for all atomic loads and stores, as MSVC
+ * generates the correct acquire/release instructions for ARM targets.
  * ====================================================================== */
 
 #pragma intrinsic(_InterlockedExchange)
@@ -68,17 +81,32 @@
 #pragma intrinsic(_InterlockedExchange64)
 #pragma intrinsic(_InterlockedCompareExchangePointer)
 
+/* ----------------------------------------------------------------------
+ * 32-bit atomics
+ * ---------------------------------------------------------------------- */
+
 /* 32-bit atomic load (acquire semantics) */
 static __forceinline uint32_t tglog_atomic_load_32(const uint32_t *p) {
+#if defined(_M_ARM64) || defined(_M_ARM)
+    /* _InterlockedOr_acq(p, 0) performs: tmp = *p | 0 (== *p), store back,
+     * return old value — with acquire semantics. The write is idempotent
+     * (OR with 0 doesn't change the value), so this is safe as a load. */
+    return (uint32_t)_InterlockedOr_acq((volatile long *)p, 0);
+#else
     uint32_t v = *((volatile uint32_t *)p);
     _ReadBarrier();
     return v;
+#endif
 }
 
 /* 32-bit atomic store (release semantics) */
 static __forceinline void tglog_atomic_store_32(uint32_t *p, uint32_t v) {
+#if defined(_M_ARM64) || defined(_M_ARM)
+    _InterlockedExchange_rel((volatile long *)p, (long)v);
+#else
     _WriteBarrier();
     *((volatile uint32_t *)p) = v;
+#endif
 }
 
 /* 32-bit atomic CAS, returns 1 on success */
@@ -92,6 +120,10 @@ static __forceinline int tglog_atomic_cas_32(uint32_t *p, uint32_t expected, uin
 static __forceinline void tglog_atomic_add_32(uint32_t *p, uint32_t v) {
     _InterlockedExchangeAdd((volatile long *)p, (long)v);
 }
+
+/* ----------------------------------------------------------------------
+ * 64-bit atomics
+ * ---------------------------------------------------------------------- */
 
 /* 64-bit atomic fetch-and-add, returns old value */
 static __forceinline uint64_t tglog_atomic_faa_64(uint64_t *p, uint64_t v) {
@@ -108,32 +140,52 @@ static __forceinline void tglog_atomic_add_64(uint64_t *p, uint64_t v) {
     _InterlockedExchangeAdd64((volatile __int64 *)p, (__int64)v);
 }
 
-/* 64-bit atomic store */
+/* 64-bit atomic store (release semantics) */
 static __forceinline void tglog_atomic_store_64(uint64_t *p, uint64_t v) {
+#if defined(_M_ARM64) || defined(_M_ARM)
+    _InterlockedExchange64_rel((volatile __int64 *)p, (__int64)v);
+#else
     _InterlockedExchange64((volatile __int64 *)p, (__int64)v);
+#endif
 }
 
-/* 64-bit atomic load (acquire semantics).
- * On x86-64, aligned 64-bit loads are naturally atomic; volatile read +
- * compiler barrier is sufficient and avoids the write side-effect of
- * _InterlockedOr64, which would break on truly const/read-only memory. */
+/* 64-bit atomic load (acquire semantics) */
 static __forceinline uint64_t tglog_atomic_load_64(const uint64_t *p) {
+#if defined(_M_ARM64) || defined(_M_ARM)
+    return (uint64_t)_InterlockedOr64_acq((volatile __int64 *)p, 0);
+#else
+    /* On x86-64, aligned 64-bit loads are naturally atomic; volatile read +
+     * compiler barrier is sufficient and avoids the write side-effect of
+     * _InterlockedOr64, which would break on truly const/read-only memory. */
     uint64_t v = *((volatile uint64_t *)p);
     _ReadBarrier();
     return v;
+#endif
 }
+
+/* ----------------------------------------------------------------------
+ * unsigned int atomics
+ * ---------------------------------------------------------------------- */
 
 /* unsigned int atomic load (acquire semantics) */
 static __forceinline unsigned int tglog_atomic_load_uint(const unsigned int *p) {
+#if defined(_M_ARM64) || defined(_M_ARM)
+    return (unsigned int)_InterlockedOr_acq((volatile long *)p, 0);
+#else
     unsigned int v = *((volatile unsigned int *)p);
     _ReadBarrier();
     return v;
+#endif
 }
 
 /* unsigned int atomic store (release semantics) */
 static __forceinline void tglog_atomic_store_uint(unsigned int *p, unsigned int v) {
+#if defined(_M_ARM64) || defined(_M_ARM)
+    _InterlockedExchange_rel((volatile long *)p, (long)v);
+#else
     _WriteBarrier();
     *((volatile unsigned int *)p) = v;
+#endif
 }
 
 /* unsigned int atomic CAS, returns 1 on success */
@@ -143,17 +195,29 @@ static __forceinline int tglog_atomic_cas_uint(unsigned int *p, unsigned int exp
                                        (long)expected) == (long)expected;
 }
 
-/* Pointer atomic load */
+/* ----------------------------------------------------------------------
+ * Pointer atomics
+ * ---------------------------------------------------------------------- */
+
+/* Pointer atomic load (acquire semantics) */
 static __forceinline void *tglog_atomic_load_ptr(void *volatile *p) {
+#if defined(_M_ARM64) || defined(_M_ARM)
+    return _InterlockedCompareExchangePointer_acq(p, NULL, NULL);
+#else
     void *v = *p;
     _ReadBarrier();
     return v;
+#endif
 }
 
-/* Pointer atomic store */
+/* Pointer atomic store (release semantics) */
 static __forceinline void tglog_atomic_store_ptr(void *volatile *p, void *v) {
+#if defined(_M_ARM64) || defined(_M_ARM)
+    _InterlockedExchangePointer_rel(p, v);
+#else
     _WriteBarrier();
     *p = v;
+#endif
 }
 
 /* Pointer atomic CAS, returns 1 on success */
@@ -168,9 +232,11 @@ static __forceinline int tglog_atomic_cas_ptr_value(void *volatile *p, void *exp
     return prev == expected;
 }
 
-/* Memory barriers */
-#define tglog_fence_store()   do { _WriteBarrier(); MemoryBarrier(); } while (0)
-#define tglog_fence_load()    do { _ReadBarrier(); MemoryBarrier(); } while (0)
+/* ----------------------------------------------------------------------
+ * Memory barriers
+ * ---------------------------------------------------------------------- */
+#define tglog_fence_store()   MemoryBarrier()
+#define tglog_fence_load()    MemoryBarrier()
 #define tglog_fence_memory()  MemoryBarrier()
 
 #elif defined(__GNUC__) || defined(__clang__)

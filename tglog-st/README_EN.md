@@ -387,7 +387,7 @@ CFLAGS="-g -O0 -DDEBUG" make tglog-st
 
 > **Note**: The TGLog-ST library itself does not link jemalloc. If your application needs to use jemalloc, you should link it when compiling the final executable, for example:
 > ```bash
-> gcc your_app.c -o your_app -ltglog-st -levent -lck -ljemalloc -lpthread -lm
+> gcc your_app.c -o your_app -ltglog-st -levent -ljemalloc -lpthread -latomic -lm
 > ```
 
 ## 🔍 Troubleshooting

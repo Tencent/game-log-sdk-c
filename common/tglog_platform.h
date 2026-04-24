@@ -246,7 +246,7 @@ TGLOG_INLINE void usleep(unsigned long usec) {
         QueryPerformanceCounter(&now);
         elapsed_ticks = (uint64_t)(now.QuadPart - start.QuadPart);
         if (elapsed_ticks >= target_ticks) break;
-        _mm_pause();
+        tglog_pause();
     }
 }
 

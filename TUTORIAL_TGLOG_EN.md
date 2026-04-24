@@ -199,7 +199,7 @@ int main() {
 gcc hello_tglog.c -o hello_tglog \
     -I/path/to/sdk-c/dist/include \
     -L/path/to/sdk-c/dist/lib \
-    -ltglog -levent -levent_pthreads -lck -ljemalloc -lpthread -lm
+    -ltglog -levent -levent_pthreads -ljemalloc -lpthread -latomic -lm
 ```
 
 **Compilation Parameter Description:**
@@ -208,9 +208,9 @@ gcc hello_tglog.c -o hello_tglog \
 - `-ltglog`: Link tglog library
 - `-levent`: Link libevent library
 - `-levent_pthreads`: Link libevent multi-thread support
-- `-lck`: Link concurrencykit library
 - `-ljemalloc`: Link jemalloc library
 - `-lpthread`: Link pthread thread library
+- `-latomic`: Link atomic operations library (128-bit CAS support)
 - `-lm`: Link math library
 
 ### Step 3: Run Program

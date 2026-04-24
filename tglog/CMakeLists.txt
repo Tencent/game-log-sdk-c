@@ -22,8 +22,12 @@ else()
             -Wall -Werror -std=c99
             -D_GNU_SOURCE -D_REENTRANT
             -Wno-typedef-redefinition
-            -fPIC -m64 -pipe -mcx16
+            -fPIC -pipe
     )
+    # Enable CMPXCHG16B on x86-64 for 128-bit CAS (used by tglog_stack.h)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|AMD64")
+        target_compile_options(tglog_objs PRIVATE -mcx16)
+    endif()
 endif()
 
 # 优化选项由根目录的 CMAKE_C_FLAGS 控制
@@ -100,7 +104,7 @@ if (BUILD_SHARED)
                 -Wl,-Bdynamic
         )
         target_link_libraries(tglog_shared PRIVATE
-                m z rt dl pthread
+                m z rt dl pthread atomic
         )
     endif ()
 

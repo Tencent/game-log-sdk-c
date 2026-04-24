@@ -202,7 +202,7 @@ int main() {
 gcc hello_tglog_st.c -o hello_tglog_st \
     -I/path/to/sdk-c/dist/include \
     -L/path/to/sdk-c/dist/lib \
-    -ltglog-st -levent -lck -ljemalloc -lpthread -lm
+    -ltglog-st -levent -ljemalloc -lpthread -latomic -lm
 ```
 
 **编译参数说明:**
@@ -210,9 +210,9 @@ gcc hello_tglog_st.c -o hello_tglog_st \
 - `-L`: 指定库文件目录
 - `-ltglog-st`: 链接 tglog-st 库(注意是 tglog-st,不是 tglog)
 - `-levent`: 链接 libevent 库
-- `-lck`: 链接 concurrencykit 库
 - `-ljemalloc`: 链接 jemalloc 库
 - `-lpthread`: 链接 pthread 线程库
+- `-latomic`: 链接原子操作库（128-bit CAS 支持）
 - `-lm`: 链接数学库
 
 **注意**: 单线程版本不需要链接 `-levent_pthreads`。
@@ -898,7 +898,7 @@ int main(int argc, char *argv[]) {
 gcc -o game_server_st_example game_server_st_example.c \
     -I/path/to/sdk-c/dist/include \
     -L/path/to/sdk-c/dist/lib \
-    -ltglog-st -levent -lck -ljemalloc -lpthread -lm
+    -ltglog-st -levent -ljemalloc -lpthread -latomic -lm
 
 # 运行
 ./game_server_st_example

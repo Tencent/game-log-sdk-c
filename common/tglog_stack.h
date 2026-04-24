@@ -60,8 +60,8 @@ typedef struct tglog_stack tglog_stack_t;
  * Double-width CAS for ABA protection
  * ====================================================================== */
 
-#if defined(_MSC_VER) && defined(_M_X64)
-/* MSVC x86-64: _InterlockedCompareExchange128 */
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))
+/* MSVC 64-bit (x86-64 / ARM64): _InterlockedCompareExchange128 */
 
 #include <intrin.h>
 
@@ -121,18 +121,17 @@ static inline int _tglog_stack_cas2(struct tglog_stack *target,
     desired.s.head = new_head;
     desired.s.generation = new_gen;
 
-    _tglog_dw_t old_val = __sync_val_compare_and_swap(
-        (_tglog_dw_t *)target,
-        expected.dw,
-        desired.dw);
-
-    if (old_val == expected.dw)
+    if (__atomic_compare_exchange_n(
+            (_tglog_dw_t *)target,
+            &expected.dw,
+            desired.dw,
+            0,                  /* strong CAS */
+            __ATOMIC_ACQ_REL,   /* success: acquire + release */
+            __ATOMIC_ACQUIRE))  /* failure: acquire only */
         return 1;
 
-    _tglog_stack_pair_t result;
-    result.dw = old_val;
-    *out_head = result.s.head;
-    *out_gen = result.s.generation;
+    *out_head = expected.s.head;
+    *out_gen = expected.s.generation;
     return 0;
 }
 
@@ -157,25 +156,24 @@ static inline int _tglog_stack_cas2(struct tglog_stack *target,
     desired.s.head = new_head;
     desired.s.generation = new_gen;
 
-    uint64_t old_val = __sync_val_compare_and_swap(
-        (uint64_t *)target,
-        expected.dw,
-        desired.dw);
-
-    if (old_val == expected.dw)
+    if (__atomic_compare_exchange_n(
+            (uint64_t *)target,
+            &expected.dw,
+            desired.dw,
+            0,                  /* strong CAS */
+            __ATOMIC_ACQ_REL,   /* success: acquire + release */
+            __ATOMIC_ACQUIRE))  /* failure: acquire only */
         return 1;
 
-    _tglog_stack_pair_t result;
-    result.dw = old_val;
-    *out_head = result.s.head;
-    *out_gen = result.s.generation;
+    *out_head = expected.s.head;
+    *out_gen = expected.s.generation;
     return 0;
 }
 
 #endif /* __SIZEOF_POINTER__ == 8 */
 
-#elif defined(_MSC_VER) && defined(_M_IX86)
-/* MSVC 32-bit: use _InterlockedCompareExchange64 */
+#elif defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_ARM))
+/* MSVC 32-bit (x86 / ARM): use _InterlockedCompareExchange64 */
 
 static __forceinline int _tglog_stack_cas2(struct tglog_stack *target,
     struct tglog_stack_entry *old_head, uintptr_t old_gen,

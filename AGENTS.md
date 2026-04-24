@@ -101,10 +101,10 @@ tglogname|field1=value1|field2=value2|...|fieldN=valueN\n
 
 ```bash
 # Multi-threaded
-gcc your_app.c -o app -ltglog -levent -levent_pthreads -lck -ljemalloc -lpthread -lm
+gcc your_app.c -o app -ltglog -levent -levent_pthreads -ljemalloc -lpthread -latomic -lm
 
 # Single-threaded
-gcc your_app.c -o app -ltglog-st -levent -lck -ljemalloc -lpthread -lm
+gcc your_app.c -o app -ltglog-st -levent -ljemalloc -lpthread -latomic -lm
 ```
 `jemalloc` is **not** linked into the SDK itself — the final executable must provide it.
 

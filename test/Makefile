@@ -3,7 +3,7 @@ STATIC_LIBS :=tglog event event_pthreads jemalloc
 ifeq ($(shell uname -s),Darwin)
     DYNAMIC_LIBS :=m z pthread
 else
-    DYNAMIC_LIBS :=m z rt dl pthread
+    DYNAMIC_LIBS :=m z rt dl pthread atomic
 endif
 INCLUDES:=. ../tglog ../common ../thirdparty/event/include
 

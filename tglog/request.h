@@ -244,7 +244,7 @@ uint64_t tglog_get_time_us(void);
  * @param tv The timeval.
  * @return Time since the timeval in milliseconds.
  */
-long tglog_time_since_ms(struct timeval *tv);
+int64_t tglog_time_since_ms(struct timeval *tv);
 
 #ifdef __cplusplus
 }

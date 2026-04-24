@@ -199,7 +199,7 @@ int main() {
 gcc hello_tglog.c -o hello_tglog \
     -I/path/to/sdk-c/dist/include \
     -L/path/to/sdk-c/dist/lib \
-    -ltglog -levent -levent_pthreads -lck -ljemalloc -lpthread -lm
+    -ltglog -levent -levent_pthreads -ljemalloc -lpthread -latomic -lm
 ```
 
 **编译参数说明:**
@@ -208,9 +208,9 @@ gcc hello_tglog.c -o hello_tglog \
 - `-ltglog`: 链接 tglog 库
 - `-levent`: 链接 libevent 库
 - `-levent_pthreads`: 链接 libevent 多线程支持
-- `-lck`: 链接 concurrencykit 库
 - `-ljemalloc`: 链接 jemalloc 库
 - `-lpthread`: 链接 pthread 线程库
+- `-latomic`: 链接原子操作库（128-bit CAS 支持）
 - `-lm`: 链接数学库
 
 ### 步骤 3: 运行程序
@@ -935,7 +935,7 @@ int main(int argc, char *argv[]) {
 gcc -o game_server_example game_server_example.c \
     -I/path/to/sdk-c/dist/include \
     -L/path/to/sdk-c/dist/lib \
-    -ltglog -levent -levent_pthreads -lck -ljemalloc -lpthread -lm
+    -ltglog -levent -levent_pthreads -ljemalloc -lpthread -latomic -lm
 
 # 运行(使用默认服务器地址)
 ./game_server_example

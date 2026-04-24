@@ -1403,7 +1403,7 @@ static bool tglog_worker_batch_send_timeout(tglog_worker *worker) {
         return false;
     }
 
-    long elapsed_ms = tglog_time_since_ms(&worker->tmp_batch->time);
+    int64_t elapsed_ms = tglog_time_since_ms(&worker->tmp_batch->time);
     if (elapsed_ms >= worker->client->conf.send_timeout) {
         return true;
     }

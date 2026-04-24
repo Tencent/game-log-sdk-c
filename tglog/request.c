@@ -253,7 +253,7 @@ bool tglog_batch_can_send(tglog_batch *batch, int max_msg, int max_size, int max
 
     struct timeval now;
     gettimeofday(&now, NULL);
-    long elapsed = (now.tv_sec - batch->time.tv_sec) * 1000 + (now.tv_usec - batch->time.tv_usec) / 1000;
+    int64_t elapsed = (int64_t)(now.tv_sec - batch->time.tv_sec) * 1000 + (now.tv_usec - batch->time.tv_usec) / 1000;
 
     return (batch->msg_count > 0 && elapsed >= max_delay);
 }
@@ -333,8 +333,8 @@ uint64_t tglog_get_time_us(void) {
     return (uint64_t) tv.tv_sec * 1000000 + (uint64_t) tv.tv_usec;
 }
 
-long tglog_time_since_ms(struct timeval *tv) {
+int64_t tglog_time_since_ms(struct timeval *tv) {
     struct timeval now;
     gettimeofday(&now, NULL);
-    return (now.tv_sec - tv->tv_sec) * 1000 + (now.tv_usec - tv->tv_usec) / 1000;
+    return (int64_t)(now.tv_sec - tv->tv_sec) * 1000 + (now.tv_usec - tv->tv_usec) / 1000;
 }

@@ -566,7 +566,7 @@ includedir=\${prefix}/include
 Name: TGLog
 Description: High-performance logging library (multi-threaded)
 Version: 1.0.0
-Libs: -L\${libdir} -ltglog -L\${prefix}/thirdparty/event/lib -levent -levent_pthreads -L\${prefix}/thirdparty/jemalloc/lib -ljemalloc -lpthread
+Libs: -L\${libdir} -ltglog -L\${prefix}/thirdparty/event/lib -levent -levent_pthreads -L\${prefix}/thirdparty/jemalloc/lib -ljemalloc -lpthread -latomic
 Cflags: -I\${includedir}/tglog -I\${prefix}/thirdparty/event/include
 ")
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/tglog.pc
@@ -668,14 +668,14 @@ gcc -o myapp myapp.c \\\\
     -Iinclude/tglog \\\\
     -Ithirdparty/event/include \\\\
     -Llib -Lthirdparty/event/lib -Lthirdparty/jemalloc/lib \\\\
-    -ltglog -levent -levent_pthreads -ljemalloc -lpthread
+    -ltglog -levent -levent_pthreads -ljemalloc -lpthread -latomic
 
 # Single-threaded version
 gcc -o myapp myapp.c \\\\
     -Iinclude/tglog-st \\\\
     -Ithirdparty/event/include \\\\
     -Llib -Lthirdparty/event/lib -Lthirdparty/jemalloc/lib \\\\
-    -ltglog-st -levent -ljemalloc -lpthread
+    -ltglog-st -levent -ljemalloc -lpthread -latomic
 ```
 
 ### Method 2: Using pkg-config (Easiest)

@@ -29,7 +29,11 @@ if(MSVC)
 elseif(APPLE)
     set(TEST_CFLAGS -Wall -Werror -Wno-typedef-redefinition -O0 -g -std=c99 -D_GNU_SOURCE)
 else()
-    set(TEST_CFLAGS -Wall -Werror -O0 -g -std=c99 -D_GNU_SOURCE -D_REENTRANT -mcx16)
+    set(TEST_CFLAGS -Wall -Werror -O0 -g -std=c99 -D_GNU_SOURCE -D_REENTRANT)
+    # Enable CMPXCHG16B on x86-64 for 128-bit CAS (used by tglog_stack.h)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|AMD64")
+        list(APPEND TEST_CFLAGS -mcx16)
+    endif()
 endif()
 
 # 为每个 .c 文件创建一个可执行文件
@@ -70,7 +74,7 @@ foreach (test_source ${TEST_SOURCES})
         )
         target_link_options(${test_name} PRIVATE -Wl,-dy)
         target_link_libraries(${test_name} PRIVATE
-                m z rt dl pthread
+                m z rt dl pthread atomic
         )
         add_dependencies(${test_name} tglog_static jemalloc event event_pthreads)
     endif()

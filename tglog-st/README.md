@@ -387,7 +387,7 @@ CFLAGS="-g -O0 -DDEBUG" make tglog-st
 
 > **注意**: TGLog-ST库本身不链接jemalloc。如果你的应用程序需要使用jemalloc，应该在编译最终可执行程序时链接，例如：
 > ```bash
-> gcc your_app.c -o your_app -ltglog-st -levent -lck -ljemalloc -lpthread -lm
+> gcc your_app.c -o your_app -ltglog-st -levent -ljemalloc -lpthread -latomic -lm
 > ```
 
 ## 🔍 故障排除

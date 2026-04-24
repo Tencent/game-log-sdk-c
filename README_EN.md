@@ -282,14 +282,14 @@ gcc your_program.c -o your_program \
     -I/path/to/sdk-c/dist/include \
     -L/path/to/sdk-c/dist/lib \
     -L/path/to/sdk-c/thirdparty/jemalloc/lib \
-    -ltglog -levent -levent_pthreads -lck -ljemalloc -lpthread -lm
+    -ltglog -levent -levent_pthreads -ljemalloc -lpthread -latomic -lm
 
 # Single-threaded version
 gcc your_program.c -o your_program \
     -I/path/to/sdk-c/dist/include \
     -L/path/to/sdk-c/dist/lib \
     -L/path/to/sdk-c/thirdparty/jemalloc/lib \
-    -ltglog-st -levent -lck -ljemalloc -lpthread -lm
+    -ltglog-st -levent -ljemalloc -lpthread -latomic -lm
 ```
 
 > **Note**: jemalloc must be linked by the final executable, not by TGLog library. This avoids version conflicts.

@@ -281,14 +281,14 @@ gcc your_program.c -o your_program \
     -I/path/to/sdk-c/dist/include \
     -L/path/to/sdk-c/dist/lib \
     -L/path/to/sdk-c/thirdparty/jemalloc/lib \
-    -ltglog -levent -levent_pthreads -lck -ljemalloc -lpthread -lm
+    -ltglog -levent -levent_pthreads -ljemalloc -lpthread -latomic -lm
 
 # 单线程版本
 gcc your_program.c -o your_program \
     -I/path/to/sdk-c/dist/include \
     -L/path/to/sdk-c/dist/lib \
     -L/path/to/sdk-c/thirdparty/jemalloc/lib \
-    -ltglog-st -levent -lck -ljemalloc -lpthread -lm
+    -ltglog-st -levent -ljemalloc -lpthread -latomic -lm
 ```
 
 > **注意**: jemalloc必须由最终的可执行程序链接，而不是由TGLog库链接。这样可以避免版本冲突。

@@ -74,6 +74,9 @@ REVIEW*.md
 .vs
 windows-*.md
 code-review-summary.md
+ARM_COMPATIBILITY_REVIEW.md
+ARM64_COMPATIBILITY_REPORT.md
+ARM64_QUICK_REFERENCE.txt
 out
 test-st/Release
 test-st/Debug

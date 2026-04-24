@@ -202,7 +202,7 @@ int main() {
 gcc hello_tglog_st.c -o hello_tglog_st \
     -I/path/to/sdk-c/dist/include \
     -L/path/to/sdk-c/dist/lib \
-    -ltglog-st -levent -lck -ljemalloc -lpthread -lm
+    -ltglog-st -levent -ljemalloc -lpthread -latomic -lm
 ```
 
 **Compilation Parameter Description:**
@@ -210,9 +210,9 @@ gcc hello_tglog_st.c -o hello_tglog_st \
 - `-L`: Specify library file directory
 - `-ltglog-st`: Link tglog-st library (note it's tglog-st, not tglog)
 - `-levent`: Link libevent library
-- `-lck`: Link concurrencykit library
 - `-ljemalloc`: Link jemalloc library
 - `-lpthread`: Link pthread thread library
+- `-latomic`: Link atomic operations library (128-bit CAS support)
 - `-lm`: Link math library
 
 **Note**: Single-threaded version doesn't need to link `-levent_pthreads`.
@@ -898,7 +898,7 @@ int main(int argc, char *argv[]) {
 gcc -o game_server_st_example game_server_st_example.c \
     -I/path/to/sdk-c/dist/include \
     -L/path/to/sdk-c/dist/lib \
-    -ltglog-st -levent -lck -ljemalloc -lpthread -lm
+    -ltglog-st -levent -ljemalloc -lpthread -latomic -lm
 
 # Run
 ./game_server_st_example

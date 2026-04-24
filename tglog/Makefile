@@ -17,7 +17,12 @@ LIB_STATIC = $(LIB_DIR)/libtglog.a
 LIB_SHARED = $(LIB_DIR)/libtglog.so
 
 # Compiler flags
-CFLAGS = -Wall -std=c99 -D_GNU_SOURCE -D_REENTRANT -fPIC -m64 -pipe -mcx16
+CFLAGS = -Wall -std=c99 -D_GNU_SOURCE -D_REENTRANT -fPIC -pipe
+# Enable CMPXCHG16B on x86-64 for 128-bit CAS (used by tglog_stack.h)
+ARCH := $(shell uname -m)
+ifneq (,$(filter x86_64 amd64,$(ARCH)))
+    CFLAGS += -mcx16
+endif
 CFLAGS += -Wno-typedef-redefinition
 
 # Build optimization
@@ -46,7 +51,7 @@ ifeq ($(OS),Windows_NT)
 else ifeq ($(shell uname),Darwin)
     DYNAMIC_LIBS = m z dl pthread
 else
-    DYNAMIC_LIBS = m z rt dl pthread
+    DYNAMIC_LIBS = m z rt dl pthread atomic
 endif
 
 # Source files (auto-detected + common)
