@@ -259,6 +259,8 @@ static bool tglog_worker_rescue_pending_data(tglog_worker *worker, tglog_conn *c
         return false;
     }
 
+    /* Free the buffer after successful rescue */
+    evbuffer_free(buf);
     tglog_info(worker->logger, "Rescue pending data, worker: %d, len: %zu", worker->id, len);
     tglog_metrics_inc_rescued_msg_bytes(worker->metrics, worker->id, len);
     return true;
@@ -279,6 +281,12 @@ static void tglog_worker_close_conn_by_timer(evutil_socket_t fd, short what, voi
 
 static void tglog_worker_close_conn_delay(tglog_worker *worker, tglog_conn *conn, int delay_seconds) {
     if (!conn) {
+        return;
+    }
+
+    /* Already scheduled for delayed close, do not create a second timer */
+    if (conn->close_event) {
+        tglog_debug(worker->logger, "Conn already in delay close, skip, worker: %d, addr: %s", worker->id, conn->endpoint);
         return;
     }
 
