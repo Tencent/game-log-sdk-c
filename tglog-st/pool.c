@@ -507,6 +507,8 @@ void tglog_mem_pool_destroy(tglog_mem_pool *pool) {
     free(pool);
 }
 
+/* Single-threaded version: no concurrent push/pop, so direct read of
+ * stack->head via TGLOG_STACK_FIRST() is safe — no need for atomic pair load. */
 static size_t tglog_stack_count(tglog_stack_t *stack) {
     size_t count = 0;
     tglog_stack_entry_t *entry = TGLOG_STACK_FIRST(stack);

@@ -12,6 +12,25 @@
  *
  * MPMC uses tagged pointer (generation counter) for ABA protection,
  * implemented via double-width CAS (128-bit on 64-bit, 64-bit on 32-bit).
+ *
+ * =========================================================================
+ * MEMORY RECLAMATION CONSTRAINT (MPMC mode):
+ *
+ * Nodes managed by MPMC operations MUST NOT be freed with free() while any
+ * concurrent push/pop/traversal may be in progress.  Between loading a node
+ * pointer and completing CAS, another thread may still dereference that
+ * node's `next` field.  If the node's memory has been returned to the OS,
+ * this causes a segfault.
+ *
+ * Safe usage patterns:
+ *   - Memory pool / arena: nodes are returned to a pool whose backing
+ *     memory is never unmapped until the pool itself is destroyed.
+ *   - Epoch-based reclamation or hazard pointers (not provided here).
+ *
+ * Unsafe:
+ *   - Calling free() on a popped node while other threads are still
+ *     operating on the stack.
+ * =========================================================================
  */
 
 #ifndef TGLOG_STACK_H
@@ -206,26 +225,89 @@ static inline void tglog_stack_init(struct tglog_stack *stack) {
 }
 
 /* ======================================================================
+ * Atomic pair load — reads {head, generation} as a consistent snapshot.
+ * Uses the same double-width technique as CAS2 to avoid torn reads.
+ * ====================================================================== */
+
+static inline void _tglog_stack_load_pair(struct tglog_stack *target,
+    struct tglog_stack_entry **out_head, uintptr_t *out_gen) {
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))
+    /* On MSVC x64/ARM64, use a CAS2 that is guaranteed to fail and returns
+     * the current value in the comparand. We compare against an impossible
+     * pair (NULL, ~0) so it always fails and gives us the real values. */
+    __int64 comparand[2];
+    comparand[0] = 0;
+    comparand[1] = (__int64)(~(uintptr_t)0);
+    _InterlockedCompareExchange128((volatile __int64 *)target,
+                                   comparand[1], comparand[0], comparand);
+    *out_head = (struct tglog_stack_entry *)comparand[0];
+    *out_gen = (uintptr_t)comparand[1];
+#elif (defined(__GNUC__) || defined(__clang__)) && __SIZEOF_POINTER__ == 8
+    /* Cannot use __atomic_load_n for 128-bit on x86-64 (requires libatomic).
+     * Use a CAS that always yields the current value: if the stack is {NULL,0}
+     * the CAS succeeds as a no-op; otherwise it fails and expected is filled
+     * with the actual value. Either way, expected holds the current snapshot. */
+    _tglog_stack_pair_t expected;
+    _tglog_stack_pair_t desired;
+    expected.s.head = NULL;
+    expected.s.generation = 0;
+    desired = expected;
+    __atomic_compare_exchange_n((_tglog_dw_t *)target,
+                                &expected.dw, desired.dw,
+                                1,              /* weak CAS is fine here */
+                                __ATOMIC_ACQUIRE,
+                                __ATOMIC_ACQUIRE);
+    *out_head = expected.s.head;
+    *out_gen = expected.s.generation;
+#elif (defined(__GNUC__) || defined(__clang__)) && __SIZEOF_POINTER__ == 4
+    _tglog_stack_pair_t expected;
+    _tglog_stack_pair_t desired;
+    expected.s.head = NULL;
+    expected.s.generation = 0;
+    desired = expected;
+    __atomic_compare_exchange_n((uint64_t *)target,
+                                &expected.dw, desired.dw,
+                                1,
+                                __ATOMIC_ACQUIRE,
+                                __ATOMIC_ACQUIRE);
+    *out_head = expected.s.head;
+    *out_gen = expected.s.generation;
+#elif defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_ARM))
+    /* MSVC 32-bit: use a failing CAS64 to atomically read the pair */
+    __int64 expected = 0;
+    __int64 result = _InterlockedCompareExchange64((volatile __int64 *)target,
+                                                    expected, expected);
+    *out_head = (struct tglog_stack_entry *)(uintptr_t)(result & 0xFFFFFFFF);
+    *out_gen = (uintptr_t)(result >> 32);
+#else
+#error "Unsupported platform for atomic pair load"
+#endif
+}
+
+/* ======================================================================
  * MPMC (Multi-Producer Multi-Consumer) operations
+ *
+ * Both push and pop use double-width CAS on the {head, generation} pair
+ * to ensure all atomic accesses to the stack use a consistent width.
+ * This eliminates undefined behavior from mixed-width atomics on the
+ * same memory location and is safe on weakly-ordered architectures.
  * ====================================================================== */
 
 /*
- * MPMC push: CAS loop on head pointer.
- * ABA is not a concern for push (only for pop).
+ * MPMC push: double-width CAS loop on {head, generation}.
+ * ABA is not a concern for push, so generation is kept unchanged.
  */
 static inline void tglog_stack_push_mpmc(struct tglog_stack *target,
     struct tglog_stack_entry *entry) {
-    struct tglog_stack_entry *stack;
+    struct tglog_stack_entry *head;
+    uintptr_t gen;
 
-    stack = (struct tglog_stack_entry *)tglog_atomic_load_ptr((void *volatile *)&target->head);
-    entry->next = stack;
-    tglog_fence_store();
+    _tglog_stack_load_pair(target, &head, &gen);
+    entry->next = head;
 
-    while (tglog_atomic_cas_ptr_value((void *volatile *)&target->head,
-                                       stack, entry,
-                                       (void **)&stack) == 0) {
-        entry->next = stack;
-        tglog_fence_store();
+    while (_tglog_stack_cas2(target, head, gen, entry, gen,
+                              &head, &gen) == 0) {
+        entry->next = head;
     }
 }
 
@@ -253,15 +335,11 @@ static inline struct tglog_stack_entry *tglog_stack_pop_mpmc(struct tglog_stack 
     uintptr_t gen;
     struct tglog_stack_entry *next;
 
-    /* Load generation first, then head */
-    gen = *(volatile uintptr_t *)&target->generation;
-    tglog_fence_load();
-    head = (struct tglog_stack_entry *)tglog_atomic_load_ptr((void *volatile *)&target->head);
+    _tglog_stack_load_pair(target, &head, &gen);
 
     if (head == NULL)
         return NULL;
 
-    /* Order with respect to next pointer dereference */
     tglog_fence_load();
     next = head->next;
 

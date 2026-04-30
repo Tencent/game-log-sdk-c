@@ -510,7 +510,10 @@ void tglog_mem_pool_destroy(tglog_mem_pool *pool) {
 
 static size_t tglog_stack_count(tglog_stack_t *stack) {
     size_t count = 0;
-    tglog_stack_entry_t *entry = TGLOG_STACK_FIRST(stack);
+    tglog_stack_entry_t *entry;
+    uintptr_t gen;
+    _tglog_stack_load_pair(stack, &entry, &gen);
+    (void) gen;
     while (entry != NULL) {
         count++;
         entry = TGLOG_STACK_NEXT(entry);
