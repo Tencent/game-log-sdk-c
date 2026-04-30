@@ -22,9 +22,9 @@ Vendored dependencies are in `jemalloc/`, `event/`, and `ck/`, with built artifa
 ## High-Level Architecture & Data Flow
 
 ### The Two Variants
-The API remains largely identical for both variants, but the internal models differ significantly.
+The API remains largely identical for both variants, but the implementations are independent and mirror the same file/module names rather than sharing core implementation files.
 1. **Multi-threaded (tglog/)**: Fully thread-safe. Log data ingested via `tglog_client_send()` goes into a lock-free ring buffer (ConcurrencyKit `ck_ring_t`). It is processed by multiple worker threads running libevent loops asynchronously.
-2. **Single-threaded (tglog-st/)**: NOT thread-safe. Ingested data is queued into a batch buffer. The client must periodically call `tglog_client_update()` to drive the event loop (libevent) and dispatch the data within the same thread. DNS and I/O happen inside this update loop.
+2. **Single-threaded (tglog-st/)**: NOT thread-safe. Log data goes directly into a batch buffer rather than a producer/consumer queue. The client must periodically call `tglog_client_update()` to drive the event loop (libevent), batch dispatch, DNS, and I/O in the same thread.
 
 ### Core Components
 Both variants consist of similar file structures:
@@ -42,21 +42,29 @@ Both variants consist of similar file structures:
 - `make`: build dependencies, both SDK variants, tests, test-tapp, and bindings.
 - `make deps`: build only third-party dependencies.
 - `make tglog` / `make tglog-st`: build a single SDK variant.
-- `make test` / `make test-tapp`: build test executables.
+- `make test` / `make test-tapp`: build C tests or the TAPP integration example.
 - `make bindings` or `make python`: build Python bindings.
+- `make install` / `make uninstall`: install to or remove `dist/`.
 - `make check-deps`: verify expected libraries/binaries exist.
-- `make clean` / `make clean-deps`: clean project outputs or dependency outputs.
+- `make clean` / `make clean-deps` / `make clean-bindings`: clean project outputs, dependency outputs, or binding outputs.
+- `make init-submodules`: initialize vendored dependencies and check out pinned versions.
 - `make RELEASE=1`: optimized build (`-O2 -DNDEBUG`).
-- `make V=1`: verbose build output.
+- `make V=1`: verbose Makefile output.
+- `make help`: show Makefile targets.
 
 CMake workflow is also supported:
 - `cmake -S . -B build && cmake --build build -j4`
+- `cmake --build build --target help_info`: show CMake target help.
+- Windows builds should use CMake + MSVC; they do not use jemalloc or ConcurrencyKit and link Windows socket libraries such as `ws2_32`.
+
+There is no standalone lint target. C test builds use `-Wall -Werror`; the root/core builds use C99 flags without `-Werror`.
 
 ### How to Run Tests
-- **Multi-threaded C tests**: `cd test && ./tglog_test`
-- **Single-threaded C tests**: `cd test-st && ./tglog_test_st`
-- **Python Binding tests**: `python3 bindings/python/test_ext.py` or `python3 bindings/python/test_cython.py` after building bindings (`make python`).
-- **TAPP integration**: `cd test-tapp && ./start.sh`
+- Build C tests first with `make test`.
+- **Multi-threaded C test**: `./test/tglog_test` or `cd test && ./tglog_test`.
+- **Single-threaded C tests**: `./test-st/tglog_test_st`, `./test-st/simple_perf_test_st`, or `make -C test-st run` to run both.
+- **Python binding tests**: after `make python`, run `make -C bindings run_python`, `make -C bindings/python run_ctypes`, `make -C bindings/python run_ext`, or `make -C bindings/python run_cython`.
+- **TAPP integration**: build with `make test-tapp`, then run `cd test-tapp && ./start.sh`; stop with `./stop.sh`.
 
 ### Adding Features or Logic
 1. **Config changes**: Edit `tglog_conf` struct in `tglog/conf.h` and `tglog-st/conf.h`. Update `tglog_conf_set_default()`.
@@ -139,4 +147,4 @@ If building from a ZIP archive, use `./download-deps.sh` before `make` when depe
 - **Single-threaded stall**: forgetting `tglog_client_update()` means no messages are ever dispatched.
 - **Process-level init**: `tglog_use_thread()` is required once per process for the multi-threaded variant only; there is no equivalent for `tglog-st`.
 - **CLB reconnection**: do not set `max_conn_lifetime` to 0 or negative when behind a Cloud Load Balancer — periodic reconnects are needed for proper load distribution.
-- **ConcurrencyKit is Unix-only**: the SDK does not support Windows.
+- **Platform split**: Unix-like builds use the Makefile/CMake paths with libevent, jemalloc, pthread, and ConcurrencyKit. Windows builds are CMake + MSVC only, use native Windows threading/socket libraries, and do not use jemalloc or ConcurrencyKit.
