@@ -316,6 +316,10 @@ static void tglog_worker_close_conn_delay(tglog_worker *worker, tglog_conn *conn
     }
 
     conn->close_event = close_event;
+    if (conn->bev) {
+        bufferevent_setcb(conn->bev, NULL, NULL, NULL, NULL);
+    }
+
     if (!tglog_worker_set_delay_close_conn(worker, conn)) {
         tglog_error(worker->logger, "Track delay close conn failed, should not be here, worker: %d, addr: %s", worker->id, conn->endpoint);
         /* Track delay close conn failed, rescue pending data and close conn immediately */
@@ -577,6 +581,12 @@ static void tglog_worker_on_conn_connected(tglog_worker *worker, tglog_conn *con
 }
 
 static void tglog_worker_on_conn_error(tglog_worker *worker, tglog_conn *conn, short what) {
+    if (conn->close_event) {
+        tglog_debug(worker->logger, "Conn already in delay close, ignore event, worker: %d, addr: %s, event: %d",
+                    worker->id, conn->endpoint, what);
+        return;
+    }
+
     tglog_error(worker->logger, "Worker: %d, addr: %s, event: %d", worker->id, conn->endpoint, what);
 
     /* Update metrics */
