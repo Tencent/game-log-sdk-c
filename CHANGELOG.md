@@ -1,5 +1,66 @@
 # TGLog SDK C 更新日志
 
+## v1.1.0 (2026-05-12)
+
+### 🎉 重要变更
+
+- **Windows 平台支持**: 完整支持 Windows + MSVC 构建，包括多线程和单线程版本
+  - 使用 CMake + `add_subdirectory(event)` 构建 libevent，无需手动配置
+  - Windows 上不依赖 ConcurrencyKit 和 jemalloc
+  - 使用 Windows 原生线程 API 替代 pthread
+  - 链接 `ws2_32` 实现 Windows Sockets 支持
+- **移除 ConcurrencyKit 依赖**: 使用自研跨平台 C99 实现替代 CK 库
+  - `tglog_atomic.h`: 原子操作（GCC/Clang `__atomic_*` + MSVC `_InterlockedXxx`）
+  - `tglog_ring.h`: SPSC/MPSC 无锁环形缓冲区，带缓存行填充
+  - `tglog_stack.h`: MPMC 无锁栈，双宽度 CAS 实现 ABA 防护
+  - `tglog_ht.h/c`: 单线程哈希表，开放寻址法
+- **ARM 架构支持**: 支持 ARM/ARM64 架构编译和运行
+  - MSVC ARM/ARM64 使用 `_Interlocked*_acq/_rel` 内在函数
+  - ARM 上使用 `__yield()` 替代 `_mm_pause()`
+  - 修复 32 位 ARM 上 `long` 类型溢出，改用 `int64_t`
+  - 链接 `-latomic` 支持 128 位 CAS 操作
+
+### 🐛 Bug 修复
+
+- **连接事件处理**: 忽略已退役连接上的事件回调，避免操作已释放的资源
+- **MPMC 栈原子操作**: 统一 push/pop 使用双宽度 CAS，消除混合宽度原子访问
+- **evbuffer 泄漏**: 修复数据抢救后 evbuffer 对象未释放的内存泄漏
+- **延迟关闭 UAF**: 防止 `close_conn_delay` 重入导致的 use-after-free
+- **32 位溢出**: 修复 `request.c/h` 和 `worker.c` 中时间计算的 `long` 类型溢出
+
+### ✨ 新特性
+
+- **跨平台兼容层** (`common/tglog_platform.h`):
+  - 抽象平台差异（Winsock 初始化、socket 错误处理等）  
+
+### 🔧 优化改进
+
+- **公共代码抽取**: 将 tglog 和 tglog-st 的公共结构体和函数提取到 `common/` 目录
+- **平台适配**: 使用 libevent 抽象替代 Unix 特有的 socket API 调用
+- **构建配置优化**: CMake 配置改进，支持 MSVC 编译器标志隔离
+
+### 🔨 构建与配置
+
+- CMake 支持 Windows MSVC 构建（`add_subdirectory(event)` 集成 libevent）
+- Makefile 移除 x86 特有的 `-m64` 标志，仅在 x86-64 上条件应用 `-mcx16`
+- 链接依赖从 `-lck` 更新为 `-latomic`
+- Windows 上 jemalloc 使用 dummy INTERFACE target
+- 测试程序在 Windows 阶段暂时跳过
+- Python 绑定支持 Windows DLL 路径注入
+
+### 📚 文档更新
+
+- 添加 Windows 构建支持文档
+- 更新所有 README 中的链接依赖说明（`-lck` → `-latomic`）
+- 更新 CLAUDE.md 项目指导文档
+
+### 📝 已知限制更新
+
+- ~~不支持 Windows 平台~~ → **已支持** Windows (MSVC 2019+)
+- 新增支持架构: x86_64, ARM, ARM64
+
+---
+
 ## v1.0.0 (2026-02-13)
 
 ### 🎉 重要变更
