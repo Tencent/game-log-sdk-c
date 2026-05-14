@@ -487,8 +487,14 @@ static void tglog_worker_on_read(struct bufferevent *bev, void *user_data) {
     tglog_worker *worker = conn->worker;
     tglog_debug(worker->logger, "Worker: %d", worker->id);
 
-    bufferevent_disable(bev, EV_READ);
-    /* TGLog v1 has no response, we do nothing here */
+    /* TGLog v1 has no response, but we keep EV_READ enabled so that peer FIN/RST
+     * surfaces as BEV_EVENT_EOF/BEV_EVENT_ERROR via tglog_worker_on_event in time.
+     * Any unexpected bytes from the server are drained and discarded here. */
+    struct evbuffer *input = bufferevent_get_input(bev);
+    size_t len = evbuffer_get_length(input);
+    if (len > 0) {
+        evbuffer_drain(input, len);
+    }
 }
 
 static void tglog_worker_on_conn_connected(tglog_worker *worker, tglog_conn *conn) {
@@ -500,6 +506,14 @@ static void tglog_worker_on_conn_connected(tglog_worker *worker, tglog_conn *con
     /* Remove from connecting list and add to connected list */
     tglog_worker_remove_connecting_conn(worker, conn);
     tglog_worker_add_conn(worker, conn);
+
+    /* Clear the connect-phase timeout we set in tglog_worker_dial_new_conn. After the
+     * handshake completes we don't want libevent to time out the bufferevent on its own —
+     * connection liveness is governed by max_conn_lifetime and TCP keepalive, and
+     * backpressure-induced stalls are handled by the send paths in conn.c. */
+    if (conn->bev) {
+        bufferevent_set_timeouts(conn->bev, NULL, NULL);
+    }
 
     /* Handle different connection types */
     switch (conn->create_type) {
@@ -557,7 +571,14 @@ static void tglog_worker_on_conn_error(tglog_worker *worker, tglog_conn *conn, s
         return;
     }
 
-    tglog_error(worker->logger, "Worker: %d, addr: %s, event: %d", worker->id, conn->endpoint, what);
+    /* BEV_EVENT_EOF means the peer closed the connection cleanly (e.g. server restart or
+     * load balancer rotation). It is expected, not a real error, so log at INFO level. */
+    if (what & BEV_EVENT_EOF) {
+        tglog_info(worker->logger, "Conn closed by peer, worker: %d, addr: %s, event: %d",
+                   worker->id, conn->endpoint, what);
+    } else {
+        tglog_error(worker->logger, "Conn error, worker: %d, addr: %s, event: %d", worker->id, conn->endpoint, what);
+    }
 
     /* Update metrics */
     tglog_metrics_inc_error_conn_count(worker->metrics, 1);
@@ -775,16 +796,20 @@ static tglog_conn *tglog_worker_dial_new_conn(tglog_worker *worker, char *addr, 
         return NULL;
     }
 
-    /* Set connect timeout */
+    /* Resolve connect timeout */
     int timeout = worker->client->conf.conn_timeout;
     if (timeout <= 0) {
         timeout = 3000;
     }
 
+    /* Set connect timeout. We pass it as the write timeout because libevent's
+     * bufferevent_socket_connect path drives the connect handshake on the write
+     * side; passing it as the read timeout would also fire periodically once
+     * EV_READ is enabled (tglog v1 has no response, so reads idle by design). */
     struct timeval tv;
     tv.tv_sec = timeout / 1000;
     tv.tv_usec = (timeout % 1000) * 1000;
-    bufferevent_set_timeouts(bev, &tv, NULL);
+    bufferevent_set_timeouts(bev, NULL, &tv);
 
     /* Create connection object */
     tglog_conn *conn = tglog_conn_create(worker, create_type, worker->client->conf.network, addr, sock, bev, user_data,
@@ -794,11 +819,18 @@ static tglog_conn *tglog_worker_dial_new_conn(tglog_worker *worker, char *addr, 
         return NULL;
     }
 
-    /* Set callbacks. We do not need EV_READ for tglog v1, but EV_WRITE must be enabled
-     * so buffered output can continue draining after the direct socket send path falls
-     * back to bufferevent buffering under backpressure. */
+    /* Set callbacks. tglog v1 has no response, but for TCP we enable both EV_READ and
+     * EV_WRITE: EV_READ lets a peer FIN/RST surface as BEV_EVENT_EOF/BEV_EVENT_ERROR via
+     * tglog_worker_on_event promptly (without it, a broken connection is only detected on
+     * the next write failure, or possibly only when max_conn_lifetime expires); EV_WRITE
+     * lets libevent asynchronously drain output bytes that the bufferevent fallback path
+     * (tglog_conn_*_with_bufferevent under backpressure) parks in the output buffer.
+     * For UDP we enable nothing — sends go directly to the fd, the bufferevent output
+     * buffer is never used, and there is no EOF to listen for. */
     bufferevent_setcb(bev, tglog_worker_on_read, NULL, tglog_worker_on_event, conn);
-    bufferevent_enable(bev, EV_WRITE);
+    if (worker->client->conf.network == TGLOG_NETWORK_TCP) {
+        bufferevent_enable(bev, EV_READ | EV_WRITE);
+    }
 
     /* Prepare address and connect */
     struct sockaddr_storage serv_addr;
