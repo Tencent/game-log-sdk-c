@@ -1,6 +1,6 @@
 # TGLog SDK C 更新日志
 
-## v1.1.0 (2026-05-12)
+## v1.1.0 (2026-05-14)
 
 ### 🎉 重要变更
 
@@ -22,11 +22,16 @@
 
 ### 🐛 Bug 修复
 
-- **连接事件处理**: 忽略已退役连接上的事件回调，避免操作已释放的资源
-- **MPMC 栈原子操作**: 统一 push/pop 使用双宽度 CAS，消除混合宽度原子访问
-- **evbuffer 泄漏**: 修复数据抢救后 evbuffer 对象未释放的内存泄漏
-- **延迟关闭 UAF**: 防止 `close_conn_delay` 重入导致的 use-after-free
-- **32 位溢出**: 修复 `request.c/h` 和 `worker.c` 中时间计算的 `long` 类型溢出
+- **连接事件处理**: 忽略已退役连接上的事件回调，避免操作已释放的资源（极低概率）
+- **evbuffer 泄漏**: 修复数据抢救后 evbuffer 对象未释放的内存泄漏（极低概率）
+- **延迟关闭 UAF**: 防止 `close_conn_delay` 重入导致的 use-after-free（极低概率）
+- **32 位溢出**: 修复 `request.c/h` 和 `worker.c` 中时间计算的 `long` 类型溢出（极低概率）
+- **TCP 断连感知慢**: 服务端进程退出/重启时，客户端要等到 `max_conn_lifetime` 到期（约 2 分钟）才换连接（tglog、tglog-st）
+  - 在 TCP bufferevent 上 enable `EV_READ | EV_WRITE`，让 peer FIN/RST 通过 `BEV_EVENT_EOF`/`BEV_EVENT_ERROR` 立即触发 `tglog_worker_on_conn_error`
+  - `tglog_worker_on_read` 改为 drain 残余字节而不是 disable EV_READ，使 EOF 检测持续生效
+  - 把 connect 超时从 `bufferevent_set_timeouts` 的 read 槽挪到 write 槽，避免开启 EV_READ 后周期性触发 `BEV_EVENT_READING | BEV_EVENT_TIMEOUT` 把空闲健康连接断掉
+  - 在 `tglog_worker_on_conn_connected` 中清空 bufferevent 超时，连上之后由 `max_conn_lifetime` + TCP keepalive 管理连接生命期
+  - `BEV_EVENT_EOF` 日志降级为 INFO，对端正常关闭不再被当作错误
 
 ### ✨ 新特性
 
