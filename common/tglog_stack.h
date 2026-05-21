@@ -287,27 +287,34 @@ static inline void _tglog_stack_load_pair(struct tglog_stack *target,
 /* ======================================================================
  * MPMC (Multi-Producer Multi-Consumer) operations
  *
- * Push uses a single-width CAS on `head` only — ABA is not a concern for
- * push (we never reuse a popped pointer mid-push), so the generation
- * counter is left untouched and need not be sampled.
+ * Push uses a single-width CAS on `head` only on platforms where overlapping
+ * single-width CAS and double-width CAS are known to interoperate correctly.
+ * Other platforms fall back to double-width CAS on {head, generation}; ABA is
+ * not a concern for push, so generation is kept unchanged.
  *
  * Pop uses a double-width CAS on {head, generation} for ABA protection,
  * matching ck_stack_pop_mpmc's tagged-pointer scheme.
- *
- * Coexistence is safe: any concurrent push that changes `head` will be
- * detected by pop's CAS2 (since the head half of the pair changes), and
- * pop is the sole writer of `generation`, so push never observes a torn
- * generation value.
  * ====================================================================== */
 
+#ifndef TGLOG_STACK_USE_SINGLEWIDTH_PUSH
+#if defined(TGLOG_STACK_FORCE_DOUBLEWIDTH_PUSH)
+#define TGLOG_STACK_USE_SINGLEWIDTH_PUSH 0
+#elif defined(TGLOG_STACK_FORCE_SINGLEWIDTH_PUSH)
+#define TGLOG_STACK_USE_SINGLEWIDTH_PUSH 1
+#elif defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
+#define TGLOG_STACK_USE_SINGLEWIDTH_PUSH 1
+#else
+#define TGLOG_STACK_USE_SINGLEWIDTH_PUSH 0
+#endif
+#endif
+
 /*
- * MPMC push: single-width CAS loop on `head` only.
- *
- * Mirrors ck_stack_push_upmc — push doesn't suffer from ABA, so we avoid
- * the cmpxchg16b microcode penalty entirely on the hot path.
+ * MPMC push: single-width CAS on x86/x86-64 by default, double-width CAS
+ * fallback elsewhere.
  */
 static inline void tglog_stack_push_mpmc(struct tglog_stack *target,
     struct tglog_stack_entry *entry) {
+#if TGLOG_STACK_USE_SINGLEWIDTH_PUSH
     struct tglog_stack_entry *head;
 
     head = (struct tglog_stack_entry *)tglog_atomic_load_ptr(
@@ -319,6 +326,18 @@ static inline void tglog_stack_push_mpmc(struct tglog_stack *target,
                                        (void **)&head) == 0) {
         entry->next = head;
     }
+#else
+    struct tglog_stack_entry *head;
+    uintptr_t gen;
+
+    _tglog_stack_load_pair(target, &head, &gen);
+    entry->next = head;
+
+    while (_tglog_stack_cas2(target, head, gen, entry, gen,
+                              &head, &gen) == 0) {
+        entry->next = head;
+    }
+#endif
 }
 
 /*
@@ -340,9 +359,10 @@ static inline void tglog_stack_push_mpmc(struct tglog_stack *target,
  * Do NOT use standard free() on nodes that may still be referenced by
  * concurrent pop operations — doing so risks a segfault.
  *
- * Snapshot strategy: we read `head` and `generation` with two separate
- * single-width loads (head first), instead of an expensive double-width
- * read. If the pair is torn, the CAS2 will simply fail and hand back the
+ * Snapshot strategy: we read `generation` before `head`, instead of an
+ * expensive double-width read. Since only pop increments generation, a
+ * successful CAS proves no pop completed after the sampled generation; if
+ * the pair is torn by a concurrent pop, CAS2 will fail and hand back the
  * real {head, generation} via its out parameters, which we reuse on the
  * next iteration — same approach as ck_stack_pop_mpmc.
  */
@@ -351,9 +371,9 @@ static inline struct tglog_stack_entry *tglog_stack_pop_mpmc(struct tglog_stack 
     uintptr_t gen;
     struct tglog_stack_entry *next;
 
+    gen = (uintptr_t)tglog_atomic_load_ptr((void *volatile *)&target->generation);
     head = (struct tglog_stack_entry *)tglog_atomic_load_ptr(
         (void *volatile *)&target->head);
-    gen = (uintptr_t)tglog_atomic_load_ptr((void *volatile *)&target->generation);
 
     if (head == NULL)
         return NULL;
