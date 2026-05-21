@@ -80,6 +80,9 @@
 #pragma intrinsic(_InterlockedOr64)
 #pragma intrinsic(_InterlockedExchange64)
 #pragma intrinsic(_InterlockedCompareExchangePointer)
+#if defined(_M_ARM64) || defined(_M_ARM)
+#pragma intrinsic(_InterlockedCompareExchange_acq)
+#endif
 
 /* ----------------------------------------------------------------------
  * 32-bit atomics
@@ -193,6 +196,28 @@ static __forceinline int tglog_atomic_cas_uint(unsigned int *p, unsigned int exp
     return _InterlockedCompareExchange((volatile long *)p,
                                        (long)desired,
                                        (long)expected) == (long)expected;
+}
+
+/* unsigned int atomic CAS with acquire semantics on success/failure.
+ *
+ * Designed for lock-free producer-side CAS loops (e.g. ring p_head reservation)
+ * where a full SEQ_CST barrier is unnecessary. On x86, every locked instruction
+ * is already a full fence so this is identical to the SEQ_CST version. On ARM,
+ * MSVC emits ldaxr/stlxr-acq pairs, avoiding the extra dmb that SEQ_CST would
+ * require.
+ *
+ * Note: MSVC only provides _Interlocked*_acq on ARM/ARM64 targets. On x86/x64
+ * we fall through to the plain (already-full-fence) variant. */
+static __forceinline int tglog_atomic_cas_uint_acquire(unsigned int *p, unsigned int expected, unsigned int desired) {
+#if defined(_M_ARM64) || defined(_M_ARM)
+    return _InterlockedCompareExchange_acq((volatile long *)p,
+                                           (long)desired,
+                                           (long)expected) == (long)expected;
+#else
+    return _InterlockedCompareExchange((volatile long *)p,
+                                       (long)desired,
+                                       (long)expected) == (long)expected;
+#endif
 }
 
 /* ----------------------------------------------------------------------
@@ -313,6 +338,24 @@ static inline void tglog_atomic_store_uint(unsigned int *p, unsigned int v) {
 static inline int tglog_atomic_cas_uint(unsigned int *p, unsigned int expected, unsigned int desired) {
     return __atomic_compare_exchange_n(p, &expected, desired, 0,
                                        __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+}
+
+/* unsigned int atomic CAS with acquire-on-success / acquire-on-failure.
+ *
+ * Designed for lock-free producer-side CAS loops (e.g. ring p_head reservation)
+ * where a full SEQ_CST barrier is unnecessary. The acquire ordering is
+ * sufficient because:
+ *   - on success, the CAS publishes nothing of its own; subsequent stores
+ *     (slot data, p_tail) carry their own release ordering;
+ *   - on failure, we only need to observe p_head's update before the next
+ *     iteration's reads of c_head — acquire provides exactly that.
+ *
+ * On x86, every locked RMW is already a full fence so this is identical to
+ * the SEQ_CST version. On ARM, GCC/Clang lower this to ldaxr/stlxr without
+ * the extra dmb ish that SEQ_CST requires. */
+static inline int tglog_atomic_cas_uint_acquire(unsigned int *p, unsigned int expected, unsigned int desired) {
+    return __atomic_compare_exchange_n(p, &expected, desired, 0,
+                                       __ATOMIC_ACQUIRE, __ATOMIC_ACQUIRE);
 }
 
 /* Pointer atomic load (acquire semantics) */

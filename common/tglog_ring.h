@@ -130,8 +130,11 @@ static inline int _tglog_ring_enqueue_sp(struct tglog_ring *ring,
 
     memcpy((char *)buffer + ts * (producer & mask), entry, ts);
 
-    /* Ensure slot data is visible before updating producer counter. */
-    tglog_fence_store();
+    /*
+     * The release-store below already orders the slot write before the
+     * p_tail update visible to any acquire-loading consumer; no separate
+     * store fence is needed.
+     */
     tglog_atomic_store_uint((unsigned int *)&ring->p_tail, delta);
     return 1;
 }
@@ -148,13 +151,14 @@ static inline int _tglog_ring_dequeue_sc(struct tglog_ring *ring,
     if (TGLOG_CC_UNLIKELY(consumer == producer))
         return 0;
 
-    /* Serialize with respect to our snapshot of the producer counter. */
-    tglog_fence_load();
-
+    /*
+     * The acquire-load of p_tail above already orders the subsequent slot
+     * read after producers' release-stores; no separate load fence is
+     * needed. Likewise, the release-store of c_head below orders the slot
+     * read before the consumer counter update — no extra store fence.
+     */
     memcpy(target, (const char *)buffer + size * (consumer & mask), size);
 
-    /* Ensure copy is completed before updating consumer counter. */
-    tglog_fence_store();
     tglog_atomic_store_uint((unsigned int *)&ring->c_head, consumer + 1);
     return 1;
 }
@@ -179,7 +183,12 @@ static inline int _tglog_ring_enqueue_mp(struct tglog_ring *ring,
 
     for (;;) {
         /*
-         * The snapshot of producer must be up to date with respect to consumer.
+         * Order our snapshot of c_head after our snapshot of p_head.
+         * Acquire-load on c_head alone is NOT sufficient: acquire only
+         * forbids reordering of later ops upward, not earlier ops
+         * downward. This explicit load fence prevents the p_head load
+         * (or its reload after a failed CAS) from sinking past the
+         * c_head load, which the full/empty arithmetic relies on.
          */
         tglog_fence_load();
         consumer = tglog_atomic_load_uint(&ring->c_head);
@@ -188,7 +197,7 @@ static inline int _tglog_ring_enqueue_mp(struct tglog_ring *ring,
 
         /* Only try CAS if not clearly full. */
         if (TGLOG_CC_LIKELY((producer - consumer) < mask)) {
-            if (tglog_atomic_cas_uint((unsigned int *)&ring->p_head,
+            if (tglog_atomic_cas_uint_acquire((unsigned int *)&ring->p_head,
                 producer, delta)) {
                 break;
             }
@@ -197,8 +206,11 @@ static inline int _tglog_ring_enqueue_mp(struct tglog_ring *ring,
         } else {
             unsigned int new_producer;
 
-            /* Slow path. Either full or stale p_head snapshot. */
-            tglog_fence_load();
+            /*
+             * Slow path. Either full or stale p_head snapshot. The
+             * acquire-load below is sufficient on its own to observe
+             * any concurrent p_head advance.
+             */
             new_producer = tglog_atomic_load_uint(&ring->p_head);
 
             if (producer == new_producer) {
@@ -233,8 +245,11 @@ static inline int _tglog_ring_enqueue_mp(struct tglog_ring *ring,
         }
     }
 
-    /* Ensure data is visible before updating p_tail. */
-    tglog_fence_store();
+    /*
+     * The release-store below already orders the slot write (and any
+     * preceding producers' writes we've waited for) before the p_tail
+     * publication; no separate store fence is needed.
+     */
     tglog_atomic_store_uint((unsigned int *)&ring->p_tail, delta);
 
     if (size != NULL)
