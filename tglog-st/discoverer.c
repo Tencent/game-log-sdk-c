@@ -11,6 +11,7 @@
 #else
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <unistd.h>
 #endif
 
 /* Platform compatibility */
@@ -127,13 +128,7 @@ tglog_discoverer *tglog_discoverer_create(const char *domain, int port, int inte
             return NULL;
         }
 
-#ifdef _WIN32
-        Sleep(10); /* 10ms */
-#else
-        tv.tv_sec = 0;
-        tv.tv_usec = 10000; /* 10ms */
-        select(0, NULL, NULL, NULL, &tv);
-#endif
+        usleep(10000); /* 10ms */
     }
 
     if (!discoverer->endpoints || discoverer->endpoints->count == 0) {

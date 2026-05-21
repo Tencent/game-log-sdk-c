@@ -1860,8 +1860,7 @@ tglog_worker *tglog_worker_create(int id, tglog_client *client) {
         }
 
         /* Small delay */
-        struct timeval tv = {0, 10000}; /* 10ms */
-        select(0, NULL, NULL, NULL, &tv);
+        usleep(10000); /* 10ms */
     }
 
     if (worker->ready_conn <= 0) {
@@ -1940,8 +1939,7 @@ static void tglog_worker_drain_and_stop(evutil_socket_t fd, short what, void *us
         }
 
         /* Small delay */
-        struct timeval tv = {0, 5000}; /* 5ms */
-        select(0, NULL, NULL, NULL, &tv);
+        usleep(5000); /* 5ms */
     }
 
     stop_worker:
