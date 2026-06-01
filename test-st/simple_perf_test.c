@@ -92,30 +92,29 @@ int main(int argc, char *argv[]) {
     /* Send messages */
     printf("Sending %d messages...\n", NUM_MESSAGES);
     int ret;
+    int enqueued = 0;
     for (int i = 0; i < NUM_MESSAGES; i++) {
         ret = tglog_client_send(client, test_msg, send_callback, NULL, TGLOG_MSG_F_COPY);
         if (ret != TGLOG_ERR_OK) {
             fprintf(stderr, "Failed to send message %d: error code %d\n", i + 1, ret);
             break;
         }
+        enqueued++;
     }
 
     uint64_t send_duration = get_time_us() - start_time;
-    printf("All messages queued in: %llu us\n", (unsigned long long) send_duration);
+    printf("Queued %d/%d messages in: %llu us\n",
+           enqueued, NUM_MESSAGES, (unsigned long long) send_duration);
 
-    /* Process messages and wait for callbacks */
+    /* Process messages and wait for callbacks of accepted messages.
+     * SDK does NOT invoke the callback for failed sends, so wait on `enqueued`. */
     printf("Processing messages and waiting for callbacks...\n");
 
-    while (callback_count < NUM_MESSAGES) {
+    while (callback_count < enqueued) {
         /* Call update to process messages */
         tglog_client_update(client);
 
-        /* If all callbacks received, break */
-        if (callback_count >= NUM_MESSAGES) {
-            break;
-        }
-
-        /* Sleep 10ms between updates */
+        /* Sleep between updates */
         usleep(100);
     }
 

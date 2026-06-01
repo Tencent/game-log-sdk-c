@@ -77,7 +77,7 @@ void print_usage(const char *prog_name) {
     printf("Usage: %s [options]\n", prog_name);
     printf("Options:\n");
     printf("  -t, --to-send NUM      Number of messages to send (default: 10000000)\n");
-    printf("  -r, --rate NUM         Token bucket refill rate (default: 200000)\n");
+    printf("  -r, --rate NUM         Token bucket refill rate, 0 means unlimited (default: 200000)\n");
     printf("  -p, --protocol PROTO   Protocol type: udp or tcp (default: tcp)\n");
     printf("  -i, --ip IP_ADDRESS    Target IP address (default: dev.tglog.com)\n");
     printf("  -P, --port PORT        Target port (default: 20001)\n");
@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
                 break;
             case 'r':
                 send_rate = atoi(optarg);
-                if (send_rate <= 0) {
+                if (send_rate < 0) {
                     fprintf(stderr, "Invalid rate: %s\n", optarg);
                     return 1;
                 }
@@ -160,7 +160,9 @@ int main(int argc, char *argv[]) {
 
     /* Initialize token buckets */
     token_bucket send_bucket;
-    init_token_bucket(&send_bucket, 50000, send_rate);
+    if (send_rate > 0) {
+        init_token_bucket(&send_bucket, 50000, send_rate);
+    }
 
     /* Record start time */
     struct timeval start_time, current_time;
@@ -171,14 +173,23 @@ int main(int argc, char *argv[]) {
 
     /* Main loop */
     uint32_t i = 0;
+    uint32_t enqueued = 0;
+    uint32_t dropped = 0;
     while (i < to_send) {
         /* Use token bucket to limit the rate for smooth sending */
-        if (!consume_token(&send_bucket, 1)) {
+        if (send_rate > 0 && !consume_token(&send_bucket, 1)) {
             usleep(500);
             continue;
         }
 
-        tglog_client_send(client, log, send_callback, NULL, TGLOG_MSG_F_NONE);
+        /* SDK does NOT invoke the callback when send fails (e.g. queue full),
+         * so wait only for callbacks of messages that were actually accepted. */
+        int rc = tglog_client_send(client, log, send_callback, NULL, TGLOG_MSG_F_NONE);
+        if (rc == TGLOG_ERR_OK) {
+            enqueued++;
+        } else {
+            dropped++;
+        }
         i++;
     }
 
@@ -186,9 +197,12 @@ int main(int argc, char *argv[]) {
     double send_elapsed = (double) (current_time.tv_sec - start_time.tv_sec) * 1000000 +
                           (double) (current_time.tv_usec - start_time.tv_usec);
     printf("send time elapsed: %f us\n", send_elapsed);
+    printf("attempted: %u, enqueued: %u, dropped: %u (%.2f%%)\n",
+           to_send, enqueued, dropped,
+           to_send > 0 ? (double) dropped * 100.0 / to_send : 0.0);
 
-    /* Wait for all callbacks to complete */
-    while (sent_count + failed_count < i) {
+    /* Wait for all callbacks of accepted messages to complete */
+    while (sent_count + failed_count < enqueued) {
         usleep(500);
         tglog_client_update(client);
     }
@@ -198,6 +212,10 @@ int main(int argc, char *argv[]) {
     double done_elapsed = (double) (current_time.tv_sec - start_time.tv_sec) * 1000000 +
                           (double) (current_time.tv_usec - start_time.tv_usec);
     printf("done time elapsed: %f us\n", done_elapsed);
+    if (done_elapsed > 0) {
+        double throughput = (double) sent_count * 1000000.0 / done_elapsed;
+        printf("throughput: %.2f logs/sec\n", throughput);
+    }
 
     /* Print metrics in JSON format */
     char json[4096];
