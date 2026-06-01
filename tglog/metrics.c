@@ -78,94 +78,87 @@ static void atomic_increment(uint64_t *counter, int count) {
     tglog_atomic_add_64(counter, count);
 }
 
+/*
+ * Sharded counter pattern: hot-path increments only the per-worker counter.
+ * The global counter is computed by summing all worker counters at print time.
+ * This eliminates one atomic write per call on the producer/worker hot paths,
+ * which were causing cache-line ping-pong on the global metrics struct.
+ */
 void tglog_metrics_inc_request_msg_count(tglog_metrics *metrics, int worker_id, int count) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
         atomic_increment(&metrics->workers[worker_id]->request_msg_count, count);
-        atomic_increment(&metrics->request_msg_count, count);
     }
 }
 
 void tglog_metrics_inc_enqueue_msg_count(tglog_metrics *metrics, int worker_id, int count) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
         atomic_increment(&metrics->workers[worker_id]->enqueued_msg_count, count);
-        atomic_increment(&metrics->enqueued_msg_count, count);
     }
 }
 
 void tglog_metrics_inc_dequeue_msg_count(tglog_metrics *metrics, int worker_id, int count) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
         atomic_increment(&metrics->workers[worker_id]->dequeued_msg_count, count);
-        atomic_increment(&metrics->dequeued_msg_count, count);
     }
 }
 
 void tglog_metrics_inc_succeeded_msg_count(tglog_metrics *metrics, int worker_id, int count) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
         atomic_increment(&metrics->workers[worker_id]->succeeded_msg_count, count);
-        atomic_increment(&metrics->succeeded_msg_count, count);
     }
 }
 
 void tglog_metrics_inc_failed_msg_count(tglog_metrics *metrics, int worker_id, int count) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
         atomic_increment(&metrics->workers[worker_id]->failed_msg_count, count);
-        atomic_increment(&metrics->failed_msg_count, count);
     }
 }
 
 void tglog_metrics_inc_timeout_msg_count(tglog_metrics *metrics, int worker_id, int count) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
         atomic_increment(&metrics->workers[worker_id]->timeout_msg_count, count);
-        atomic_increment(&metrics->timeout_msg_count, count);
     }
 }
 
 void tglog_metrics_inc_retry_msg_count(tglog_metrics *metrics, int worker_id, int count) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
         atomic_increment(&metrics->workers[worker_id]->retry_msg_count, count);
-        atomic_increment(&metrics->retry_msg_count, count);
     }
 }
 
 void tglog_metrics_inc_dropped_msg_count(tglog_metrics *metrics, int worker_id, int count) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
         atomic_increment(&metrics->workers[worker_id]->dropped_msg_count, count);
-        atomic_increment(&metrics->dropped_msg_count, count);
     }
 }
 
 void tglog_metrics_inc_eagain_err_count(tglog_metrics *metrics, int worker_id, int count) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
         atomic_increment(&metrics->workers[worker_id]->eagain_err_count, count);
-        atomic_increment(&metrics->eagain_err_count, count);
     }
 }
 
 void tglog_metrics_inc_rescued_msg_bytes(tglog_metrics *metrics, int worker_id, size_t bytes) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
         atomic_increment(&metrics->workers[worker_id]->rescued_msg_bytes, (int) bytes);
-        atomic_increment(&metrics->rescued_msg_bytes, (int) bytes);
     }
 }
 
 void tglog_metrics_inc_opened_conn_count(tglog_metrics *metrics, int worker_id, int count) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
         atomic_increment(&metrics->workers[worker_id]->opened_conn_count, count);
-        atomic_increment(&metrics->opened_conn_count, count);
     }
 }
 
 void tglog_metrics_inc_closed_conn_count(tglog_metrics *metrics, int worker_id, int count) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
         atomic_increment(&metrics->workers[worker_id]->closed_conn_count, count);
-        atomic_increment(&metrics->closed_conn_count, count);
     }
 }
 
 void tglog_metrics_inc_error_conn_count(tglog_metrics *metrics, int worker_id, int count) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
         atomic_increment(&metrics->workers[worker_id]->error_conn_count, count);
-        atomic_increment(&metrics->error_conn_count, count);
     }
 }
 
@@ -184,14 +177,12 @@ void tglog_metrics_set_worker_endpoint_count(tglog_metrics *metrics, int worker_
 void tglog_metrics_inc_add_endpoint_count(tglog_metrics *metrics, int worker_id, int count) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
         atomic_increment(&metrics->workers[worker_id]->add_endpoint_count, count);
-        atomic_increment(&metrics->add_endpoint_count, count);
     }
 }
 
 void tglog_metrics_inc_remove_endpoint_count(tglog_metrics *metrics, int worker_id, int count) {
     if (metrics && worker_id >= 0 && worker_id < metrics->worker_count) {
         atomic_increment(&metrics->workers[worker_id]->remove_endpoint_count, count);
-        atomic_increment(&metrics->remove_endpoint_count, count);
     }
 }
 
@@ -219,6 +210,36 @@ void tglog_metrics_set_worker_msg_queue_capacity(tglog_metrics *metrics, int wor
     }
 }
 
+/*
+ * Aggregate per-worker counters into a global snapshot.
+ * Counters (xxx_count, xxx_bytes) are summed; gauges (endpoint_count,
+ * msg_queue_size, msg_queue_capacity) remain in the global struct and
+ * are not aggregated here. Out-param `out` must be zero-initialized; only
+ * the counter fields are written.
+ */
+static void tglog_metrics_aggregate_counters(tglog_metrics *metrics, tglog_metrics *out) {
+    int i;
+    for (i = 0; i < metrics->worker_count; i++) {
+        tglog_metrics *w = metrics->workers[i];
+        if (!w) continue;
+        out->request_msg_count   += tglog_atomic_load_64(&w->request_msg_count);
+        out->enqueued_msg_count  += tglog_atomic_load_64(&w->enqueued_msg_count);
+        out->dequeued_msg_count  += tglog_atomic_load_64(&w->dequeued_msg_count);
+        out->succeeded_msg_count += tglog_atomic_load_64(&w->succeeded_msg_count);
+        out->failed_msg_count    += tglog_atomic_load_64(&w->failed_msg_count);
+        out->timeout_msg_count   += tglog_atomic_load_64(&w->timeout_msg_count);
+        out->retry_msg_count     += tglog_atomic_load_64(&w->retry_msg_count);
+        out->dropped_msg_count   += tglog_atomic_load_64(&w->dropped_msg_count);
+        out->eagain_err_count    += tglog_atomic_load_64(&w->eagain_err_count);
+        out->rescued_msg_bytes   += tglog_atomic_load_64(&w->rescued_msg_bytes);
+        out->opened_conn_count   += tglog_atomic_load_64(&w->opened_conn_count);
+        out->closed_conn_count   += tglog_atomic_load_64(&w->closed_conn_count);
+        out->error_conn_count    += tglog_atomic_load_64(&w->error_conn_count);
+        out->add_endpoint_count    += tglog_atomic_load_64(&w->add_endpoint_count);
+        out->remove_endpoint_count += tglog_atomic_load_64(&w->remove_endpoint_count);
+    }
+}
+
 int tglog_metrics_print(tglog_metrics *metrics, char *buffer, size_t size) {
     if (!metrics || !buffer || size == 0) {
         return -1;
@@ -227,23 +248,27 @@ int tglog_metrics_print(tglog_metrics *metrics, char *buffer, size_t size) {
     size_t offset = 0;
     int n;
 
-    // 读取主metrics的值（原子操作）
-    uint64_t request_msg_count = tglog_atomic_load_64(&metrics->request_msg_count);
-    uint64_t enqueued_msg_count = tglog_atomic_load_64(&metrics->enqueued_msg_count);
-    uint64_t dequeued_msg_count = tglog_atomic_load_64(&metrics->dequeued_msg_count);
-    uint64_t succeeded_msg_count = tglog_atomic_load_64(&metrics->succeeded_msg_count);
-    uint64_t failed_msg_count = tglog_atomic_load_64(&metrics->failed_msg_count);
-    uint64_t timeout_msg_count = tglog_atomic_load_64(&metrics->timeout_msg_count);
-    uint64_t retry_msg_count = tglog_atomic_load_64(&metrics->retry_msg_count);
-    uint64_t dropped_msg_count = tglog_atomic_load_64(&metrics->dropped_msg_count);
-    uint64_t eagain_err_count = tglog_atomic_load_64(&metrics->eagain_err_count);
-    uint64_t rescued_msg_bytes = tglog_atomic_load_64(&metrics->rescued_msg_bytes);
-    uint64_t opened_conn_count = tglog_atomic_load_64(&metrics->opened_conn_count);
-    uint64_t closed_conn_count = tglog_atomic_load_64(&metrics->closed_conn_count);
-    uint64_t error_conn_count = tglog_atomic_load_64(&metrics->error_conn_count);
+    /* Aggregate per-worker counters; load gauges directly. */
+    tglog_metrics agg;
+    memset(&agg, 0, sizeof(agg));
+    tglog_metrics_aggregate_counters(metrics, &agg);
+
+    uint64_t request_msg_count = agg.request_msg_count;
+    uint64_t enqueued_msg_count = agg.enqueued_msg_count;
+    uint64_t dequeued_msg_count = agg.dequeued_msg_count;
+    uint64_t succeeded_msg_count = agg.succeeded_msg_count;
+    uint64_t failed_msg_count = agg.failed_msg_count;
+    uint64_t timeout_msg_count = agg.timeout_msg_count;
+    uint64_t retry_msg_count = agg.retry_msg_count;
+    uint64_t dropped_msg_count = agg.dropped_msg_count;
+    uint64_t eagain_err_count = agg.eagain_err_count;
+    uint64_t rescued_msg_bytes = agg.rescued_msg_bytes;
+    uint64_t opened_conn_count = agg.opened_conn_count;
+    uint64_t closed_conn_count = agg.closed_conn_count;
+    uint64_t error_conn_count = agg.error_conn_count;
+    uint64_t add_endpoint_count = agg.add_endpoint_count;
+    uint64_t remove_endpoint_count = agg.remove_endpoint_count;
     uint64_t endpoint_count = tglog_atomic_load_64(&metrics->endpoint_count);
-    uint64_t add_endpoint_count = tglog_atomic_load_64(&metrics->add_endpoint_count);
-    uint64_t remove_endpoint_count = tglog_atomic_load_64(&metrics->remove_endpoint_count);
     uint64_t msg_queue_size = tglog_atomic_load_64(&metrics->msg_queue_size);
     uint64_t msg_queue_capacity = tglog_atomic_load_64(&metrics->msg_queue_capacity);
 
@@ -433,23 +458,27 @@ int tglog_metrics_print_json(tglog_metrics *metrics, char *buffer, size_t size) 
     size_t offset = 0;
     int n;
 
-    // 读取主metrics的值（原子操作）
-    uint64_t request_msg_count = tglog_atomic_load_64(&metrics->request_msg_count);
-    uint64_t enqueued_msg_count = tglog_atomic_load_64(&metrics->enqueued_msg_count);
-    uint64_t dequeued_msg_count = tglog_atomic_load_64(&metrics->dequeued_msg_count);
-    uint64_t succeeded_msg_count = tglog_atomic_load_64(&metrics->succeeded_msg_count);
-    uint64_t failed_msg_count = tglog_atomic_load_64(&metrics->failed_msg_count);
-    uint64_t timeout_msg_count = tglog_atomic_load_64(&metrics->timeout_msg_count);
-    uint64_t retry_msg_count = tglog_atomic_load_64(&metrics->retry_msg_count);
-    uint64_t dropped_msg_count = tglog_atomic_load_64(&metrics->dropped_msg_count);
-    uint64_t eagain_err_count = tglog_atomic_load_64(&metrics->eagain_err_count);
-    uint64_t rescued_msg_bytes = tglog_atomic_load_64(&metrics->rescued_msg_bytes);
-    uint64_t opened_conn_count = tglog_atomic_load_64(&metrics->opened_conn_count);
-    uint64_t closed_conn_count = tglog_atomic_load_64(&metrics->closed_conn_count);
-    uint64_t error_conn_count = tglog_atomic_load_64(&metrics->error_conn_count);
+    /* Aggregate per-worker counters; load gauges directly. */
+    tglog_metrics agg;
+    memset(&agg, 0, sizeof(agg));
+    tglog_metrics_aggregate_counters(metrics, &agg);
+
+    uint64_t request_msg_count = agg.request_msg_count;
+    uint64_t enqueued_msg_count = agg.enqueued_msg_count;
+    uint64_t dequeued_msg_count = agg.dequeued_msg_count;
+    uint64_t succeeded_msg_count = agg.succeeded_msg_count;
+    uint64_t failed_msg_count = agg.failed_msg_count;
+    uint64_t timeout_msg_count = agg.timeout_msg_count;
+    uint64_t retry_msg_count = agg.retry_msg_count;
+    uint64_t dropped_msg_count = agg.dropped_msg_count;
+    uint64_t eagain_err_count = agg.eagain_err_count;
+    uint64_t rescued_msg_bytes = agg.rescued_msg_bytes;
+    uint64_t opened_conn_count = agg.opened_conn_count;
+    uint64_t closed_conn_count = agg.closed_conn_count;
+    uint64_t error_conn_count = agg.error_conn_count;
+    uint64_t add_endpoint_count = agg.add_endpoint_count;
+    uint64_t remove_endpoint_count = agg.remove_endpoint_count;
     uint64_t endpoint_count = tglog_atomic_load_64(&metrics->endpoint_count);
-    uint64_t add_endpoint_count = tglog_atomic_load_64(&metrics->add_endpoint_count);
-    uint64_t remove_endpoint_count = tglog_atomic_load_64(&metrics->remove_endpoint_count);
     uint64_t msg_queue_size = tglog_atomic_load_64(&metrics->msg_queue_size);
     uint64_t msg_queue_capacity = tglog_atomic_load_64(&metrics->msg_queue_capacity);
 
