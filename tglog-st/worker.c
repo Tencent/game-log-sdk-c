@@ -1343,6 +1343,7 @@ static int tglog_worker_send_batch_tcp(tglog_worker *worker) {
 
     size_t sent = 0;
     int try_count = 0;
+    int conn_count_before_send = worker->conns->count;
     while (sent < batch_buf_len) {
         try_count++;
         ssize_t bytes_sent = tglog_conn_sendv_with_bufferevent(conn, batch_iov, batch_iov_count);
@@ -1355,7 +1356,7 @@ static int tglog_worker_send_batch_tcp(tglog_worker *worker) {
                 tglog_worker_on_conn_error(worker, conn, BEV_EVENT_WRITING | BEV_EVENT_ERROR);
             }
 
-            if (worker->conns->count > 0 && try_count < worker->conns->count) {
+            if (worker->conns->count > 0 && try_count < conn_count_before_send) {
                 conn = tglog_worker_get_conn(worker);
                 if (!conn) {
                     tglog_fatal(worker->logger, "get conn failed, no conn available, worker: %d", worker->id);
