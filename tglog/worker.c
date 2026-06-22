@@ -1295,13 +1295,20 @@ static int tglog_worker_send_batch_udp(tglog_worker *worker) {
     }
 
     size_t sent = 0;
+    int eagain_try_count = 0;
+    int conn_count_before_send = worker->conns->count;
     while (sent < batch_buf_len) {
         ssize_t bytes_sent = tglog_conn_sendv(conn, batch_iov, batch_iov_count);
         if (bytes_sent < 0) {
             int err = evutil_socket_geterror(conn->fd);
             if (TGLOG_ERR_IS_EAGAIN(err)) {
                 tglog_metrics_inc_eagain_err_count(worker->metrics, worker->id, 1);
-                tglog_debug(worker->logger, "Send batch encounter EAGAIN or EWOULDBLOCK and will retry again, worker: %d, addr: %s, errno: %d", worker->id, conn->endpoint, err);
+                eagain_try_count++;
+                if (eagain_try_count >= conn_count_before_send) {
+                    tglog_warn(worker->logger, "Send batch encounter EAGAIN or EWOULDBLOCK, stop retrying in this update, worker: %d, addr: %s, errno: %d, try_count: %d", worker->id, conn->endpoint, err, eagain_try_count);
+                    return TGLOG_ERR_SEND_FAILED;
+                }
+                tglog_debug(worker->logger, "Send batch encounter EAGAIN or EWOULDBLOCK and will retry again, worker: %d, addr: %s, errno: %d, try_count: %d", worker->id, conn->endpoint, err, eagain_try_count);
                 if (worker->conns->count > 1) {
                     conn = tglog_worker_get_conn(worker);
                     if (!conn) {
