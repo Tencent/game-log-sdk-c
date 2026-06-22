@@ -194,7 +194,7 @@ ssize_t tglog_conn_sendv_with_bufferevent(tglog_conn *conn, const struct iovec *
     if (sent < 0) {
         int sock_err = evutil_socket_geterror(conn->fd);
         eagain = TGLOG_ERR_IS_EAGAIN(sock_err);
-        tglog_error(conn->worker->logger, "writev failed: %s", tglog_socket_error_str(0));
+        tglog_error(conn->worker->logger, "writev failed: %s", tglog_socket_error_str(sock_err));
     }
 
     /* Send success */
