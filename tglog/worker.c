@@ -316,9 +316,13 @@ static void tglog_worker_close_conn_delay(tglog_worker *worker, tglog_conn *conn
     }
 
     conn->close_event = close_event;
-    if (conn->bev) {
-        bufferevent_setcb(conn->bev, NULL, NULL, NULL, NULL);
-    }
+    /* Keep the connection's read/event callbacks intact while it waits in the
+     * delay-close queue. The read callback lets a peer FIN/RST be detected promptly
+     * (EOF is surfaced through a read attempt) and the event callback then routes the
+     * error into tglog_worker_on_conn_error, which rescues the pending data and closes
+     * immediately instead of letting it sit until the close timer fires (up to
+     * TGLOG_DEFAULT_CONN_CLOSE_DELAY later). The conn->close_event guard at the top of
+     * tglog_worker_on_conn_error distinguishes this delayed-close case. */
 
     if (!tglog_worker_set_delay_close_conn(worker, conn)) {
         tglog_error(worker->logger, "Track delay close conn failed, should not be here, worker: %d, addr: %s", worker->id, conn->endpoint);
@@ -596,8 +600,17 @@ static void tglog_worker_on_conn_connected(tglog_worker *worker, tglog_conn *con
 
 static void tglog_worker_on_conn_error(tglog_worker *worker, tglog_conn *conn, short what) {
     if (conn->close_event) {
-        tglog_debug(worker->logger, "Conn already in delay close, ignore event, worker: %d, addr: %s, event: %d",
-                    worker->id, conn->endpoint, what);
+        /* The connection is already waiting in the delay-close queue but broke before
+         * its close timer fired. Its out buffer can no longer be flushed to the dead
+         * peer, so rescue the pending data to another connection and close immediately
+         * rather than waiting up to TGLOG_DEFAULT_CONN_CLOSE_DELAY for the timer.
+         * tglog_conn_close() frees close_event (event_free del+free), so the pending
+         * timer is cleaned up safely. */
+        tglog_info(worker->logger, "Delay-close conn broke during wait, rescue pending data and close immediately, worker: %d, addr: %s, event: %d",
+                   worker->id, conn->endpoint, what);
+        tglog_worker_del_delay_close_conn(worker, conn);
+        tglog_worker_rescue_pending_data(worker, conn);
+        tglog_conn_close(conn);
         return;
     }
 
@@ -679,9 +692,12 @@ static void tglog_worker_on_conn_error(tglog_worker *worker, tglog_conn *conn, s
             break;
     }
 
-    /* If there is no pending data, close the connection 5s later */
-    size_t out_buffer_len = tglog_conn_get_out_buffer_len(conn);
-    tglog_worker_close_conn_delay(worker, conn, out_buffer_len > 0 ? TGLOG_DEFAULT_CONN_CLOSE_DELAY : 5);
+    /* The connection is already broken; its out buffer can never be flushed to
+     * the dead peer, so waiting TGLOG_DEFAULT_CONN_CLOSE_DELAY would only delay
+     * delivery of the pending data. Pass delay 0 to rescue the pending data to
+     * another connection immediately; if no alternative connection is available
+     * right now, close_conn_delay falls back to a delayed close internally. */
+    tglog_worker_close_conn_delay(worker, conn, 0);
 }
 
 static void tglog_worker_on_event(struct bufferevent *bev, short what, void *user_data) {
