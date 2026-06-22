@@ -41,6 +41,7 @@ struct tglog_discoverer {
     struct event_base *base;                /* Event base */
     struct evdns_base *dns_base;            /* DNS base */
     struct event *timer_event;              /* DNS update timer */
+    bool lookup_inflight;                   /* Is DNS lookup in progress */
     bool ready;                             /* Is initial resolution complete */
 };
 
@@ -82,6 +83,7 @@ tglog_discoverer *tglog_discoverer_create(const char *domain, int port, int inte
     discoverer->logger = logger;
     discoverer->endpoints = tglog_endpoint_list_create(NULL, 0, 0);
     discoverer->interval_sec = 60;
+    discoverer->lookup_inflight = false;
     discoverer->ready = false;
 
     if (interval_sec > 0) {
@@ -265,6 +267,7 @@ static void tglog_discoverer_set_ready_once(tglog_discoverer *discoverer) {
 
 static void dns_callback(int result, struct evutil_addrinfo *addr, void *user_data) {
     tglog_discoverer *discoverer = (tglog_discoverer *) user_data;
+    discoverer->lookup_inflight = false;
 
     if (result) {
         tglog_error(discoverer->logger, "DNS resolution failed: %s\n", evutil_gai_strerror(result));
@@ -337,6 +340,13 @@ static void dns_callback(int result, struct evutil_addrinfo *addr, void *user_da
 
 static void tglog_discoverer_lookup(tglog_discoverer *discoverer) {
     struct evdns_base *dns_base = discoverer->dns_base;
+
+    if (discoverer->lookup_inflight) {
+        tglog_debug(discoverer->logger, "DNS lookup already in flight, skip refresh, domain: %s", discoverer->domain);
+        return;
+    }
+
+    discoverer->lookup_inflight = true;
     evdns_base_clear_host_addresses(dns_base);
 #ifdef _WIN32
     evdns_base_load_hosts(dns_base, "C:\\Windows\\System32\\drivers\\etc\\hosts");
