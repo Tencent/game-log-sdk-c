@@ -33,10 +33,14 @@ Both variants consist of similar file structures:
 - **`conn.c/h`**: Manages the socket lifecycle (TCP or UDP), connection pools, and automatic reconnection with exponential backoff. Send timeouts and buffering happen here.
 - **`discoverer.c/h`**: DNS resolution. Uses a separate thread in `tglog` but timer-driven events in `tglog-st`.
 - **`request.c/h`**: Manages building the pipe-delimited payload (`tglogname|field=value...`) into request structures.
-- **`pool.c/h`**: Pre-allocated memory pools heavily utilized to bypass frequent malloc/free calls.
+- **`endpoint.c/h`**: Endpoint (resolved server IP) management.
+- **`pool.c/h`**: Pre-allocated memory pools heavily utilized to bypass frequent malloc/free calls. Pool capacity defaults differ between variants: multi-threaded defaults are ~10x the single-threaded defaults.
 - **`metrics.c/h`**: Maintains statistics like sent, dropped, and latency. Uses atomic operations (`ck_pr_*`) for multi-threaded counters.
+- **`conf.c/h`**: Configuration struct and `tglog_conf_set_default()`.
+- **`debug_logger.c/h`**: Pluggable debug logging via `can_log` / `write_log` function pointers.
+- **`err.c/h`**: Error code definitions (`TGLOG_ERR_*`) used in callbacks.
 
-*Important Note: If you are modifying core logic, usually you need to update both `tglog/` and `tglog-st/` respectively to keep them in sync.*
+*Important Note: If you are modifying core logic, usually you need to update both `tglog/` and `tglog-st/` respectively to keep them in sync. The two variants mirror the same file/module names but have fully independent implementations — there is no shared core.*
 
 ## Build, Test, and Development Commands
 - `make`: build dependencies, both SDK variants, tests, test-tapp, and bindings.
@@ -67,9 +71,12 @@ There is no standalone lint target. C test builds use `-Wall -Werror`; the root/
 - **TAPP integration**: build with `make test-tapp`, then run `cd test-tapp && ./start.sh`; stop with `./stop.sh`.
 
 ### Adding Features or Logic
-1. **Config changes**: Edit `tglog_conf` struct in `tglog/conf.h` and `tglog-st/conf.h`. Update `tglog_conf_set_default()`.
+1. **Config changes**: Edit `tglog_conf` struct in `tglog/conf.h` and `tglog-st/conf.h`. Update `tglog_conf_set_default()` in both variants.
 2. **Metrics**: Add to `tglog_metrics` in `metrics.h` using lock-free `ck_pr_*` (multi-threaded) and regular operations (single-threaded). Print them via `tglog_client_print_metrics()`.
 3. **Memory management**: Never link `jemalloc` in the core SDK library. The user app provides it. Use `pool.c/h` for memory object pooling.
+4. **Connection logic**: Edit `conn.c/h` in both variants; keep TCP/UDP handling consistent and preserve the exponential-backoff reconnection behavior.
+
+*When in doubt about config defaults, the source (`tglog-st/conf.c` / `tglog/conf.c` `tglog_conf_set_default()`) is authoritative — the README config table may lag behind actual defaults.*
 
 ## Public API Reference
 

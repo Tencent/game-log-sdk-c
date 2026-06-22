@@ -386,13 +386,13 @@ client.destroy()
 | **队列和超时配置** | | | |
 | `max_pending_messages` | int | 409600 (多线程)<br>1000000 (单线程) | 每个worker最大待处理消息数 |
 | `send_timeout` | int | 30000ms | 发送超时时间 |
-| `max_retries` | int | 3 | 最大重试次数 |
+| `max_retries` | int | 10 | 最大重试次数 |
 | `stop_timeout` | int | 3000ms | 停止超时时间 |
 | **线程配置** | | | |
 | `worker_num` | int | 8 | Worker线程数量 (仅多线程版本) |
 | **单线程版本特有配置** | | | |
-| `max_update_us` | int | 200us | 单次update调用的最大时间 (仅单线程版本) |
-| `max_messages_per_update` | int | 1000 | 每次update处理的最大消息数 (仅单线程版本) |
+| `max_update_us` | int | 300us | 单次update调用的最大时间 (仅单线程版本) |
+| `max_messages_per_update` | int | 20 | 每次update处理的最大消息数 (仅单线程版本) |
 | **内存池配置** | | | |
 | `message_pool_cap` | size_t | 1000000 (多线程)<br>100000 (单线程) | 消息池容量 |
 | `payload_pool_256b_cap` | size_t | 20000 (多线程)<br>2000 (单线程) | 256字节负载池容量 |

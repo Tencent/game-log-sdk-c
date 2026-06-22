@@ -172,7 +172,7 @@ sdk-c/
 
 Key configuration differences between versions:
 - Multi-threaded: `worker_num` (default 8), uses `ck_ring` queues
-- Single-threaded: `max_update_us` (default 200µs), `max_messages_per_update` (default 1000)
+- Single-threaded: `max_update_us` (default 300µs), `max_messages_per_update` (default 20)
 - Memory pool defaults: multi-threaded = 10x single-threaded
 
 ### Testing
