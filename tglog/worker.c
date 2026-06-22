@@ -266,6 +266,21 @@ static bool tglog_worker_rescue_pending_data(tglog_worker *worker, tglog_conn *c
     return true;
 }
 
+static void tglog_worker_detach_replacement_refs(tglog_worker *worker, tglog_conn *old_conn) {
+    int i;
+
+    if (!worker || !old_conn || !worker->connecting_conns) {
+        return;
+    }
+
+    old_conn->replacing = false;
+    for (i = 0; i < worker->connecting_conns->count; i++) {
+        tglog_conn *conn = worker->connecting_conns->items[i];
+        if (conn->create_type == CREATE_BY_REPLACE && conn->user_data == old_conn) {
+            conn->user_data = NULL;
+        }
+    }
+}
 
 static void tglog_worker_close_conn_by_timer(evutil_socket_t fd, short what, void *user_data) {
     (void) fd;
@@ -283,6 +298,8 @@ static void tglog_worker_close_conn_delay(tglog_worker *worker, tglog_conn *conn
     if (!conn) {
         return;
     }
+
+    tglog_worker_detach_replacement_refs(worker, conn);
 
     /* Already scheduled for delayed close, do not create a second timer */
     if (conn->close_event) {
@@ -495,6 +512,7 @@ static bool tglog_worker_replace_conn(tglog_worker *worker, tglog_conn *old_conn
             tglog_conn_close(new_conn);
             return false;
         }
+        old_conn->replacing = true;
         return true;
     }
 
@@ -572,9 +590,12 @@ static void tglog_worker_on_conn_connected(tglog_worker *worker, tglog_conn *con
         case CREATE_BY_REPLACE:
             tglog_info(worker->logger, "Create conn to replace an expired one, worker: %d, addr: %s", worker->id, conn->endpoint);
             if (conn->user_data) {
-                tglog_worker_remove_conn(worker, conn->user_data);
-                tglog_worker_close_conn_delay(worker, conn->user_data, TGLOG_DEFAULT_CONN_CLOSE_DELAY);
+                tglog_conn *old_conn = conn->user_data;
                 conn->user_data = NULL;
+                old_conn->replacing = false;
+                if (tglog_worker_remove_conn(worker, old_conn)) {
+                    tglog_worker_close_conn_delay(worker, old_conn, TGLOG_DEFAULT_CONN_CLOSE_DELAY);
+                }
             }
             break;
 
@@ -672,6 +693,11 @@ static void tglog_worker_on_conn_error(tglog_worker *worker, tglog_conn *conn, s
 
         case CREATE_BY_REPLACE:
             tglog_info(worker->logger, "Create conn to replace an expired one failed, worker: %d, addr: %s", worker->id, conn->endpoint);
+            if (conn->user_data) {
+                tglog_conn *old_conn = conn->user_data;
+                old_conn->replacing = false;
+                conn->user_data = NULL;
+            }
             break;
 
         case CREATE_BY_RECOVER:
@@ -683,7 +709,7 @@ static void tglog_worker_on_conn_error(tglog_worker *worker, tglog_conn *conn, s
             break;
 
         case CREATE_BY_NONE:
-            if (!tglog_worker_supplement_conn(worker)) {
+            if (!conn->replacing && !tglog_worker_supplement_conn(worker)) {
                 tglog_warn(worker->logger, "A connection was closed, try to supplement one but no available endpoints, worker: %d", worker->id);
             }
             break;
@@ -1061,6 +1087,10 @@ static void tglog_worker_emergency_supplement(evutil_socket_t fd, short what, vo
 
 static bool tglog_worker_is_conn_expired(tglog_worker *worker, tglog_conn *conn) {
     if (worker == NULL || conn == NULL) {
+        return false;
+    }
+
+    if (conn->replacing || conn->close_event) {
         return false;
     }
 

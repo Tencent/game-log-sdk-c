@@ -38,6 +38,7 @@ typedef struct tglog_conn {
     struct event *close_event;          /* delay close timer event */
     void *user_data;                    /* user data */
     struct evbuffer *pending_data;      /* pending data to rescue */
+    bool replacing;                     /* replacement connection is pending */
     time_t expire_time;                 /* expire time */
     int write_high_watermark;           /* write high watermark */
 } tglog_conn;
