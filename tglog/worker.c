@@ -1829,7 +1829,7 @@ tglog_worker *tglog_worker_create(int id, tglog_client *client) {
     tglog_metrics_set_worker_endpoint_count(worker->metrics, worker->id, worker->endpoints->count);
 
     /* Init connecting conn list (multiple connections per endpoint) */
-    worker->conns_per_endpoint = worker->endpoints->count <= 2 ? 2 : 1;
+    worker->conns_per_endpoint = worker->endpoints->count <= 2 ? 3 : 2;
     tglog_info(worker->logger, "Using %d connections per endpoint, worker: %d, endpoints: %d", worker->conns_per_endpoint, worker->id, worker->endpoints->count);
 
     worker->connecting_conns = tglog_conn_list_create(worker->endpoints->count * worker->conns_per_endpoint);
