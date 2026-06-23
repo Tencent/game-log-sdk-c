@@ -122,6 +122,11 @@ static int tglog_worker_get_conn_count_by_addr(tglog_worker *worker, char *addr)
     return tglog_conn_list_get_count_by_addr(worker->conns, addr);
 }
 
+static int tglog_worker_get_total_conn_count_by_addr(tglog_worker *worker, char *addr) {
+    return tglog_conn_list_get_count_by_addr(worker->conns, addr) +
+           tglog_conn_list_get_count_by_addr(worker->connecting_conns, addr);
+}
+
 static void tglog_worker_mark_endpoint_unavailable(tglog_worker *worker, char *addr) {
     uint16_t addr_len = (uint16_t)strlen(addr);
     int ep_count = (int) worker->endpoints->count;
@@ -389,21 +394,8 @@ static bool tglog_worker_supplement_conn(tglog_worker *worker) {
             continue;
         }
 
-        /* Count existing connections for this endpoint */
-        int existing_conns = 0;
-        int j;
-        for (j = 0; j < worker->conns->count; j++) {
-            if (strcmp(worker->conns->items[j]->endpoint, ep->addr) == 0) {
-                existing_conns++;
-            }
-        }
-
-        /* Check connecting connections too */
-        for (j = 0; j < worker->connecting_conns->count; j++) {
-            if (strcmp(worker->connecting_conns->items[j]->endpoint, ep->addr) == 0) {
-                existing_conns++;
-            }
-        }
+        /* Count both connected and connecting connections for this endpoint */
+        int existing_conns = tglog_worker_get_total_conn_count_by_addr(worker, ep->addr);
 
         /* Create connections if below target */
         if (existing_conns < worker->conns_per_endpoint) {
@@ -455,22 +447,36 @@ static bool tglog_worker_supplement_conn(tglog_worker *worker) {
      *    - Connections being closed may still be counted in existing_conns
      *    - Fallback ensures at least one connection attempt is made
      *
-     * Note: This logic ignores both unavailable status and conns_per_endpoint limit,
-     * prioritizing system availability over strict connection distribution.
+     * Note: This logic ignores unavailable status and allows an endpoint to exceed
+     * conns_per_endpoint, but caps each endpoint at 2x conns_per_endpoint to avoid
+     * creating too many connections for a single endpoint.
      */
+    int max_conns_per_endpoint = worker->conns_per_endpoint * 2;
     int random_index = rand_r(&worker->rand_seed) % worker->endpoints->count;
-    tglog_endpoint *ep = worker->endpoints->items[random_index];
-    tglog_conn *new_conn = tglog_worker_dial_new_conn(worker, ep->addr, CREATE_BY_SUPPLEMENT, NULL);
-    if (!new_conn) {
-        return false;
+    for (i = 0; i < worker->endpoints->count; i++) {
+        tglog_endpoint *ep = worker->endpoints->items[(random_index + i) % worker->endpoints->count];
+        int total_conns = tglog_worker_get_total_conn_count_by_addr(worker, ep->addr);
+        if (total_conns >= max_conns_per_endpoint) {
+            tglog_warn(worker->logger, "Skip force supplement endpoint because connection count reaches limit, worker: %d, addr: %s, conns: %d, limit: %d",
+                       worker->id, ep->addr, total_conns, max_conns_per_endpoint);
+            continue;
+        }
+
+        tglog_conn *new_conn = tglog_worker_dial_new_conn(worker, ep->addr, CREATE_BY_SUPPLEMENT, NULL);
+        if (!new_conn) {
+            return false;
+        }
+
+        if (!tglog_worker_add_connecting_conn(worker, new_conn)) {
+            tglog_error(worker->logger, "Add connecting conn failed, close the conn to avoid memory leak, worker: %d, addr: %s", worker->id, ep->addr);
+            tglog_conn_close(new_conn);
+            return false;
+        }
+        return true;
     }
 
-    if (!tglog_worker_add_connecting_conn(worker, new_conn)) {
-        tglog_error(worker->logger, "Add connecting conn failed, close the conn to avoid memory leak, worker: %d, addr: %s", worker->id, ep->addr);
-        tglog_conn_close(new_conn);
-        return false;
-    }
-    return true;
+    tglog_warn(worker->logger, "All endpoints reached force supplement connection limit, worker: %d, limit: %d", worker->id, max_conns_per_endpoint);
+    return false;
 }
 
 static bool tglog_worker_replace_conn(tglog_worker *worker, tglog_conn *old_conn) {
