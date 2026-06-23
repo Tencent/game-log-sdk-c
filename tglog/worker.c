@@ -395,6 +395,23 @@ static bool tglog_worker_remove_conn(tglog_worker *worker, tglog_conn *conn) {
     return false;
 }
 
+static bool tglog_worker_has_endpoint(tglog_worker *worker, const char *addr) {
+    int i;
+
+    if (!worker || !worker->endpoints || !addr) {
+        return false;
+    }
+
+    for (i = 0; i < worker->endpoints->count; i++) {
+        tglog_endpoint *ep = worker->endpoints->items[i];
+        if (ep && ep->addr && strcmp(ep->addr, addr) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static tglog_conn *tglog_worker_dial_new_conn(tglog_worker *worker, char *addr, tglog_conn_create_type create_type, void *user_data);
 
 static bool tglog_worker_supplement_conn(tglog_worker *worker) {
@@ -546,8 +563,23 @@ static void tglog_worker_on_conn_connected(tglog_worker *worker, tglog_conn *con
     /* Update metrics */
     tglog_metrics_inc_opened_conn_count(worker->client->metrics, worker->id, 1);
 
-    /* Remove from connecting list and add to connected list */
+    /* Remove from connecting list and accept it only if the endpoint still exists */
     tglog_worker_remove_connecting_conn(worker, conn);
+    if (conn->create_type != CREATE_BY_INIT && !tglog_worker_has_endpoint(worker, conn->endpoint)) {
+        tglog_warn(worker->logger, "Connected endpoint has been removed, close stale conn, worker: %d, addr: %s, type: %d",
+                   worker->id, conn->endpoint, conn->create_type);
+        if (conn->create_type == CREATE_BY_REPLACE && conn->user_data) {
+            tglog_conn *old_conn = conn->user_data;
+            old_conn->replacing = false;
+            conn->user_data = NULL;
+        } else if (conn->create_type == CREATE_BY_RECOVER && conn->user_data) {
+            free(conn->user_data);
+            conn->user_data = NULL;
+        }
+        conn->create_type = CREATE_BY_NONE;
+        tglog_conn_close(conn);
+        return;
+    }
     tglog_worker_add_conn(worker, conn);
 
     /* Clear the connect-phase timeout we set in tglog_worker_dial_new_conn. After the
