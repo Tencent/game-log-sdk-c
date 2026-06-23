@@ -1,5 +1,35 @@
 # TGLog SDK C 更新日志
 
+## v1.1.1 (2026-06-23)
+
+### 🐛 Bug 修复
+
+- **DNS 查询**: 防止 DNS 解析任务重叠执行，避免定时器触发时重复发起查询（tglog、tglog-st）
+- **TCP 重试**: 当部分 TCP 连接发送失败时继续尝试剩余连接，提升连接异常场景下的发送成功率（tglog、tglog-st）
+- **UDP EAGAIN 重试**: 限制 UDP `EAGAIN` 重试次数，避免持续重试占用事件循环（tglog、tglog-st）
+- **过期连接替换**: 为正在替换的过期连接增加保护，避免同一连接被重复替换（tglog、tglog-st）
+- **延迟关闭连接**: 延迟关闭期间连接异常时立即抢救 pending 数据并关闭，避免等待关闭定时器导致发送延迟（tglog、tglog-st）
+- **过期 endpoint 连接**: 连接建立成功时若所属 endpoint 已被移除，直接关闭该连接，避免向已删除 endpoint 继续发送（tglog、tglog-st）
+- **MPMC 栈兼容性**: 修复平台 fallback 路径下 MPMC stack push 的安全性问题
+- **测试程序等待逻辑**: 测试程序改为等待实际入队消息数，避免发送队列满时等待未触发回调的失败请求导致卡住
+
+### 🔧 优化改进
+
+- **连接并发度**: 多线程版本每个 endpoint 的默认连接数提升，小节点数场景从 2 增加到 3，更多节点场景从 1 增加到 2
+- **指标性能**: 热路径只更新 per-worker 指标，打印时汇总全局指标，减少全局原子写造成的 cache-line 竞争
+- **无锁数据结构性能**:
+  - MPMC stack push 改为单宽度 CAS，避免 x86-64 `cmpxchg16b` / ARM64 `casp` 热路径开销
+  - ring buffer 减少不必要的原子屏障，降低队列操作开销
+- **单线程等待实现**: tglog-st 短延迟等待统一改用跨平台 `usleep()` 封装，替代 POSIX `select()` 和 Windows `Sleep()` 分支
+- **EAGAIN 判断**: TCP/UDP 连接错误判断统一使用 `TGLOG_ERR_IS_EAGAIN`
+
+### 📝 文档与测试
+
+- 同步 README 和项目说明中的配置默认值、模块描述以及 Python binding 性能数据
+- 测试程序退出统计增加 attempted / enqueued / dropped 信息，便于定位发送队列满导致的丢弃
+
+---
+
 ## v1.1.0 (2026-05-14)
 
 ### 🎉 重要变更
